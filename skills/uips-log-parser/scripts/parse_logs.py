@@ -329,6 +329,8 @@ def main() -> None:
         if not files[0].exists():
             print(f"Error: file not found: {args.file}", file=sys.stderr)
             sys.exit(1)
+        if not args.show_all and args.last == 1:
+            args.show_all = True  # show all runs when a file is explicitly provided
     else:
         locations = [Path(args.log_dir)] if args.log_dir else None
         files = find_execution_log_files(days=args.days, locations=locations)
@@ -394,7 +396,7 @@ def main() -> None:
     else:
         hint = "" if args.show_all else " (use --last N or --all to see more)"
         print(
-            f"UiPath Execution Log — showing {shown} of {total} run(s)"
+            f"UiPath Execution Log - showing {shown} of {total} run(s)"
             f" from {len(files)} file(s){hint}",
             file=sys.stderr,
         )

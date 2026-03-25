@@ -46,7 +46,7 @@ def run() -> None:
     if not configs:
         print("ERROR: no Data/Config*.xlsx found.", file=sys.stderr)
         sys.exit(1)
-    config = configs[0]
+    config = Path(configs[0]).as_posix()
 
     print(f"DOTNET={dotnet}")
     print(f"ASSEMBLY={assembly}")

@@ -11,19 +11,20 @@ license: Apache-2.0
 compatibility: Requires Python 3.11+ and uv. Input must be a UiPath Config.xlsx with Name/Value column headers per sheet.
 metadata:
   author: cprima
-  version: "0.1.0"
+  version: "0.1.1"
 allowed-tools: Bash
 ---
 
 # UiPath REFramework — Typed Config Class Generator
 
-Automates tasks 1 and 4 of the integration workflow. Tasks 2–10 require
-manual action in UiPath Studio and must be handed off to the user.
+Four phases: **Initialize** (guard + detect), **Generate** (agent runs all
+file changes), **Implement** (user reloads Studio), **Finalize** (TestCase
+patched automatically).
 
-## Entry guard
+## Initialize
 
-Before proceeding, verify the working directory is a REFramework project.
-Two files must exist:
+Verify the working directory is a REFramework project, then resolve build
+variables. Abort if either file check fails.
 
 ```bash
 # Both must be present — abort if either is missing
@@ -31,248 +32,65 @@ test -f Framework/InitAllSettings.xaml
 ls Data/Config*.xlsx
 ```
 
-```bash
-# Check for UiPath.CodedWorkflows or any coded-workflow-capable package
-python -c "
-import json, sys
-deps = json.load(open('project.json')).get('dependencies', {})
-coded = [k for k in deps if 'Coded' in k or 'coded' in k]
-print(coded[0] if coded else '')
-"
-```
-
-| Check | Path / key | Absence means |
+| Check | Path | Absence means |
 |---|---|---|
 | REFramework indicator | `Framework/InitAllSettings.xaml` | Not a REFramework project — skill does not apply |
 | Config input | `Data/Config*.xlsx` | Nothing to generate from — ask user for the file location |
-| Coded workflows support | `project.json` → any `*Coded*` dependency | Studio will refuse to compile `Config.cs`; user must install `UiPath.CodedWorkflows` via Package Manager first |
 
-If the REFramework or config check fails, stop and tell the user this skill
-targets REFramework template-based projects and cannot proceed without these
-files.
-
-If `UiPath.CodedWorkflows` (or equivalent) is absent, stop with:
-
-> This skill generates a C# coded class. Studio requires the
-> `UiPath.CodedWorkflows` package to compile it. Please open the project in
-> Studio, go to **Manage Packages**, and install `UiPath.CodedWorkflows` before
-> continuing. Once installed, re-run this skill.
-
-## Version detection
-
-Read `project.json` and extract the `UiPath.System.Activities` dependency
-version to determine the REFramework template generation and the correct
-`--dotnet-version` flag:
+Resolve `DOTNET`, `ASSEMBLY`, and `CONFIG` from `project.json`:
 
 ```bash
-python -c "
-import json, re
-data = json.load(open('project.json'))
-sys_act = data.get('dependencies', {}).get('UiPath.System.Activities', '[22')
-major = int(re.search(r'\[(\d+)', sys_act).group(1))
-print('net8' if major >= 25 else 'net6')
-"
+eval $(uv run config-tree detect)
+echo "DOTNET=$DOTNET  ASSEMBLY=$ASSEMBLY  CONFIG=$CONFIG"
 ```
 
-| `UiPath.System.Activities` | REF template | `--dotnet-version` |
-|---|---|---|
-| `[25.*]` | v25.0.0 | `net8` |
-| `[22.*]` / `[23.*]` / `[24.*]` | v23.10.0 or v24.10.0 | `net6` (default) |
-
-v23 and v24 share identical dependency versions and cannot be distinguished
-from `project.json` alone — treat both as `net6`.
-
-Also read the project `name` from `project.json` — the assembly name used in
-all Studio integration steps is `{name}.Core`:
-
-```bash
-ASSEMBLY=$(python -c "import json; print(json.load(open('project.json'))['name'] + '.Core')")
-```
-
-## Automated tasks (agent executes)
-
-Resolve both variables first, then run the generator once for both outputs:
-
-```bash
-DOTNET=$(python -c "
-import json, re
-data = json.load(open('project.json'))
-sys_act = data.get('dependencies', {}).get('UiPath.System.Activities', '[22')
-major = int(re.search(r'\[(\d+)', sys_act).group(1))
-print('net8' if major >= 25 else 'net6')
-")
-ASSEMBLY=$(python -c "import json; print(json.load(open('project.json'))['name'] + '.Core')")
-CONFIG=$(ls Data/Config*.xlsx | head -1)
-
-# Task 1 — C# to stdout, save to Lib/Config.cs
-uv run --script skills/uips-config-tree/scripts/conform_mold.py "$CONFIG" \
-    --generate-tostring \
-    --dotnet-version "$DOTNET" \
-    > Lib/Config.cs
-
-# Task 4 — XAML clipboard snippet to file
-uv run --script skills/uips-config-tree/scripts/conform_mold.py "$CONFIG" \
-    --generate-tostring \
-    --dotnet-version "$DOTNET" \
-    --output-xaml LoadTypedConfig.xaml
-```
-
-`Lib/Config.cs` is ready to copy into the project.
-`LoadTypedConfig.xaml` is written as UTF-8 (no BOM). User must open in
-Notepad, Ctrl+A, Ctrl+C before pasting into Studio — do not copy from
-terminal or chat output.
-
-## Manual tasks (hand off to user)
-
-After running the script, instruct the user to perform these steps in order
-in UiPath Studio.
-
----
-
-### Task 2 — Copy Config.cs into the project
-
-Copy the generated file to:
-
-```
-Lib/Config.cs
-```
-
----
-
-### Task 3 — Open project in Studio
-
-Open the project. Studio detects `Lib/Config.cs` and automatically adds
-`UiPath.CodedWorkflows` to `project.json`:
-
-```diff
-+    "UiPath.CodedWorkflows": "[24.10.2]",
-```
-
----
-
-### Task 5 — Paste XAML snippet into InitAllSettings.xaml
-
-Open `Framework/InitAllSettings.xaml`. Click at the bottom of the
-**"Initialize All Settings"** Sequence (after the existing settings-loading
-block). Paste from the file (Notepad → Ctrl+A → Ctrl+C → Studio Ctrl+V).
-
-Studio automatically adds these namespace imports on paste:
-
-```diff
-+      <x:String>System.ComponentModel</x:String>
-+      <x:String>UiPath.Excel</x:String>
-+      <x:String>UiPath.Excel.Activities</x:String>
-+      <AssemblyReference>System.ComponentModel.EventBasedAsync</AssemblyReference>
-+      <AssemblyReference>UiPath.Excel.Activities.Design</AssemblyReference>
-```
-
-All other `±` lines in the diff are `sap:VirtualizedContainerService.HintSize`
-layout noise — no logic change.
-
----
-
-### Task 6 — Import namespace Cpmf.Config
-
-Open the Imports panel in Studio (or right-click → Import Namespaces).
-Add `Cpmf.Config`. Studio resolves the assembly name from the project name.
-
-```diff
-+      <x:String>Cpmf.Config</x:String>
-+      <AssemblyReference>{ASSEMBLY}</AssemblyReference>
-```
-
-`{ASSEMBLY}` = `project.json → name` + `.Core` (e.g. `MyProject.Core`).
-Studio resolves the assembly name from the project name automatically.
-
----
-
-### Task 7 — Promote out_ConFigTree to typed OutArgument
-
-Three edits in `Framework/InitAllSettings.xaml`:
-
-**7a.** Add `xmlns:cc` to the root Activity element:
-
-```diff
-+xmlns:cc="clr-namespace:Cpmf.Config;assembly={ASSEMBLY}"
-```
-
-**7b.** Declare `out_ConFigTree` as a typed OutArgument in `x:Members`:
-
-```diff
-+<x:Property Name="out_ConFigTree" Type="OutArgument(cc:CodedConfig)" />
-```
-
-**7c.** Remove the local variable and change both argument types from
-`x:Object` to `cc:CodedConfig`:
-
-```diff
--<Variable x:TypeArguments="x:Object" Name="out_ConFigTree" />
-
--<OutArgument x:TypeArguments="x:Object">[out_ConFigTree]</OutArgument>
-+<OutArgument x:TypeArguments="cc:CodedConfig">[out_ConFigTree]</OutArgument>
-
--<InArgument x:TypeArguments="x:Object">[CodedConfig.Load(dt_Tables)]</InArgument>
-+<InArgument x:TypeArguments="cc:CodedConfig">[CodedConfig.Load(dt_Tables)]</InArgument>
-```
-
----
-
-### Task 8 — Declare typed receiver variable in TestCase
-
-In `Tests/TestCase_InitAllSettings.xaml`, add `xmlns:cc` to the root element:
-
-```diff
-+xmlns:cc="clr-namespace:Cpmf.Config;assembly={ASSEMBLY}"
-```
-
-Add `ConFigTree` as a variable at the **parent** TestCase sequence (not inside
-`... When` or `... Then`) so it is in scope for all child sequences:
-
-```xml
-<Variable x:TypeArguments="cc:CodedConfig" Name="ConFigTree" />
-```
-
----
-
-### Task 9 — Add OutArgument binding to InvokeWorkflowFile
-
-In `Tests/TestCase_InitAllSettings.xaml`, add the following entry inside
-`InvokeWorkflowFile.Arguments` for the `InitAllSettings` invocation:
-
-```xml
-<OutArgument x:TypeArguments="cc:CodedConfig" x:Key="out_ConFigTree">[ConFigTree]</OutArgument>
-```
-
----
-
-### Task 10 — Add ConFigTree assertions to the Then sequence
-
-Append to the `... Then` sequence in `Tests/TestCase_InitAllSettings.xaml`:
-
-**Object identity checks:**
-
-```xml
-<uta:VerifyExpression DisplayName="ConFigTree: object is not Nothing"
-    Expression="[ConFigTree IsNot Nothing]"
-    OutputMessageFormat="[&quot;actual: &quot; + (ConFigTree IsNot Nothing).ToString()]"
-    ContinueOnFailure="True" />
-<uta:VerifyExpression DisplayName="ConFigTree: type is CodedConfig"
-    Expression="[ConFigTree.GetType().Name = &quot;CodedConfig&quot;]"
-    OutputMessageFormat="[&quot;actual: &quot; + ConFigTree.GetType().Name]"
-    ContinueOnFailure="True" />
-```
-
-**Typed property assertions (new `... Then (ConFigTree typed properties)` sequence):**
-
-| Expression | Expected |
+| `UiPath.System.Activities` | `DOTNET` |
 |---|---|
-| `ConFigTree.Settings.FeatureName = "TypesDemo"` | string match |
-| `ConFigTree.Settings.MaxItems = 42` | int match |
-| `ConFigTree.Settings.IsEnabled = True` | bool match |
-| `ConFigTree.Constants.MaxRetryNumber = 0` | int match |
-| `ConFigTree.Constants.StrictMode = False` | bool match |
+| `[25.*]` | `net8` |
+| `[22.*]` / `[23.*]` / `[24.*]` | `net6` |
+| `[21.*]` and below | **not supported — aborts** |
 
-All use `ContinueOnFailure="True"`.
+## Generate
+
+Run all of the following in order. Each step is idempotent.
+
+```bash
+# Generate Lib/Config.cs
+uv run config-tree generate "$CONFIG" --generate-tostring --dotnet-version "$DOTNET" > Lib/Config.cs
+
+# Add UiPath.CodedWorkflows to project.json if absent
+uv run config-tree patch-project
+
+# Generate LoadTypedConfig.xaml clipboard snippet
+uv run config-tree generate "$CONFIG" --generate-tostring --dotnet-version "$DOTNET" --output-xaml LoadTypedConfig.xaml
+
+# Patch Framework/InitAllSettings.xaml
+uv run config-tree patch-init-settings --assembly "$ASSEMBLY" --xaml LoadTypedConfig.xaml
+
+# Patch Tests/TestCase_InitAllSettings.xaml
+uv run config-tree patch-testcase --assembly "$ASSEMBLY"
+```
+
+## Implement
+
+Tell the user:
+
+> Generate is complete. **Close the project and re-open it in Studio** so
+> Studio restores the new `UiPath.CodedWorkflows` dependency. The workflow
+> will compile and run once the package restore finishes.
+
+## Finalize
+
+`patch-testcase` adds to `Tests/TestCase_InitAllSettings.xaml`:
+
+- `xmlns:cc` and `Cpmf.Config` namespace/assembly imports
+- `ConFigTree` typed variable on the root sequence
+- `out_ConFigTree` OutArgument binding on `InvokeWorkflowFile`
+- Two identity assertions (`IsNot Nothing`, `GetType().Name = "CodedConfig"`)
+
+Property-value assertions (`ConFigTree.Settings.X = expected`) depend on the
+project's test fixture data and must be added manually after verifying the
+generated typed class against `Data/Config_Test.xlsx`.
 
 ## Key CLI flags
 
@@ -282,13 +100,10 @@ All use `ContinueOnFailure="True"`.
 | `--generate-tostring` | off | Add `ToString()` override to each class |
 | `--generate-tojson` | off | Add `ToJson()` / `FromJson()` helpers |
 | `--readonly` | off | Use `{ get; init; }` instead of `{ get; set; }` |
-| `--no-loader` | off | Suppress `FromDataTable` / `Load()` methods |
 | `--uipath-var NAME` | `out_ConFigTree` | Variable name used in the XAML snippet |
 
 ## Gotchas
 
-- If Studio shows *"Please import the UiPath.CodedWorkflows package or at least one package supporting coded workflows"*, the project is missing the coded-workflow dependency. Install `UiPath.CodedWorkflows` via **Manage Packages** before Task 3.
-- Paste the XAML from the **file** via Notepad — not from terminal or chat output. Extra characters before `<?xml` cause Studio to reject the paste.
-- Task 3 (opening in Studio) must happen before task 5 (paste) so `UiPath.CodedWorkflows` is present.
-- Task 6 (namespace import) must happen before task 7 (type promotion) so Studio can resolve `cc:CodedConfig`.
+- If Studio shows *"Please import the UiPath.CodedWorkflows package"*, re-run the Generate phase — the dependency is missing from `project.json`.
+- The project must be reloaded in Studio after Generate completes — `UiPath.CodedWorkflows` is a new dependency and Studio must restore it before it can compile.
 - `[WARN]` on stderr means a sheet had an unrecognised header row; output is still generated best-effort.

@@ -1,30 +1,11 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["openpyxl"]
-# ///
 """
-ConFormMold — UiPath REFramework Config.xlsx → typed C# classes and XAML clipboard snippet.
+generate — Config.xlsx → typed C# classes and XAML clipboard snippet.
 
-Reads ./Data/Config.xlsx (or a supplied path), detects Standard and Asset sheet
-schemas, and generates:
+Reads a UiPath Config.xlsx and generates:
   - A typed C# file with one class per sheet plus a CodedConfig aggregator
-  - Optionally a ClipboardData XAML snippet (REF-pattern) for paste into UiPath Studio
-
-Usage:
-  uv run conform_mold.py [FILE] [OPTIONS]
-
-Examples:
-  uv run conform_mold.py
-  uv run conform_mold.py ./Data/Config.xlsx --output-cs CodedConfig.cs
-  uv run conform_mold.py ./Data/Config.xlsx --output-xaml LoadTypedConfig.xaml
-  uv run conform_mold.py ./Data/Config.xlsx --sheets Settings,Constants
-  uv run conform_mold.py ./Data/Config.xlsx --no-loader --generate-tostring
-  uv run conform_mold.py ./Data/Config.xlsx --format json
-
-Exit codes: 0 = success (warnings possible), 1 = fatal input error.
+  - Optionally a ClipboardData XAML snippet for paste into UiPath Studio
 """
 
-import argparse
 import datetime
 import json
 import re
@@ -46,8 +27,6 @@ DEFAULT_UIPATH_VAR = "out_ConFigTree"
 
 _HEADER_STANDARD = ["name", "value", "description"]
 _HEADER_ASSET = ["name", "asset", "orchestratorassetfolder", "description"]
-
-# C# types that require `using System;`
 _SYSTEM_TYPES = {"DateOnly", "DateTime", "TimeOnly"}
 
 # ---------------------------------------------------------------------------
@@ -109,7 +88,6 @@ def load_workbook(path: Path) -> openpyxl.Workbook:
 
 
 def detect_schema(header_row: list) -> str | None:
-    """Return 'standard', 'asset', or None based on normalised header columns."""
     normalised = [str(v).strip().lower() if v is not None else "" for v in header_row]
     if len(normalised) >= 3 and normalised[:3] == _HEADER_STANDARD[:3]:
         return "standard"
@@ -119,7 +97,6 @@ def detect_schema(header_row: list) -> str | None:
 
 
 def read_sheet(ws) -> tuple[str, list[dict]]:
-    """Return (schema, rows). Emits warnings and returns ('skip', []) for bad sheets."""
     all_rows = list(ws.iter_rows(values_only=True))
     if not all_rows or all(v is None for v in all_rows[0]):
         print(f"  [WARN] Sheet '{ws.title}': no header row found, skipping.", file=sys.stderr)
@@ -128,10 +105,7 @@ def read_sheet(ws) -> tuple[str, list[dict]]:
     header = list(all_rows[0])
     schema = detect_schema(header)
     if schema is None:
-        print(
-            f"  [WARN] Sheet '{ws.title}': unrecognised header {header[:4]}, skipping.",
-            file=sys.stderr,
-        )
+        print(f"  [WARN] Sheet '{ws.title}': unrecognised header {header[:4]}, skipping.", file=sys.stderr)
         return "skip", []
 
     rows = []
@@ -143,7 +117,7 @@ def read_sheet(ws) -> tuple[str, list[dict]]:
             value = raw[1] if len(raw) > 1 else None
             desc = str(raw[2]).strip() if len(raw) > 2 and raw[2] is not None else None
             rows.append({"name": name, "value": value, "description": desc})
-        else:  # asset
+        else:
             name = str(raw[0]).strip()
             asset_name = str(raw[1]).strip() if len(raw) > 1 and raw[1] is not None else ""
             folder = str(raw[2]).strip() if len(raw) > 2 and raw[2] is not None else ""
@@ -154,17 +128,14 @@ def read_sheet(ws) -> tuple[str, list[dict]]:
 
 
 def infer_cs_type(py_value, dotnet_version: str) -> str:
-    """Map a Python value (from openpyxl data_only) to a C# type name."""
     if py_value is None:
         return "string"
-    # bool must precede int — bool is a subclass of int in Python
     if isinstance(py_value, bool):
         return "bool"
     if isinstance(py_value, int):
         return "int"
     if isinstance(py_value, float):
         return "double"
-    # datetime.time before datetime.datetime
     if isinstance(py_value, datetime.time) and not isinstance(py_value, datetime.datetime):
         return "TimeOnly"
     if isinstance(py_value, datetime.datetime):
@@ -177,7 +148,6 @@ def infer_cs_type(py_value, dotnet_version: str) -> str:
 
 
 def to_pascal_case(name: str) -> str:
-    """Convert a config key name to PascalCase."""
     segments = re.split(r"[^a-zA-Z0-9]+", name)
     result = "".join(seg[0].upper() + seg[1:] for seg in segments if seg)
     if result and result[0].isdigit():
@@ -186,7 +156,6 @@ def to_pascal_case(name: str) -> str:
 
 
 def sheet_name_to_class_name(sheet_name: str) -> str:
-    """Convert sheet name to C# class name: split on . and -, PascalCase, append Config."""
     segments = re.split(r"[.\-]", sheet_name)
     result = "".join(seg[0].upper() + seg[1:] for seg in segments if seg)
     return result + "Config"
@@ -250,7 +219,7 @@ def build_ir(
                 )
                 if cs_type in _SYSTEM_TYPES:
                     ir.needs_system_using = True
-            else:  # asset
+            else:
                 sheet_def.properties.append(
                     PropertyDef(
                         prop_name=prop_name,
@@ -294,7 +263,6 @@ def _property_initializer(cs_type: str) -> str:
 
 
 def _from_data_table_case(prop: PropertyDef) -> list[str]:
-    """Return C# switch-case lines for a single property in FromDataTable."""
     name = prop.prop_name
     lines = []
     if prop.cs_type == "OrchestratorAsset":
@@ -304,29 +272,10 @@ def _from_data_table_case(prop: PropertyDef) -> list[str]:
         lines.append('                    break;')
     elif prop.cs_type == "string":
         lines.append(f'                case "{name}": cfg.{name} = value; break;')
-    elif prop.cs_type == "int":
+    elif prop.cs_type in ("int", "double", "bool", "DateOnly", "DateTime", "TimeOnly"):
+        t = prop.cs_type
         lines.append(f'                case "{name}":')
-        lines.append(f'                    if (int.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
-        lines.append('                    break;')
-    elif prop.cs_type == "double":
-        lines.append(f'                case "{name}":')
-        lines.append(f'                    if (double.TryParse(value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v_{name})) cfg.{name} = v_{name};')
-        lines.append('                    break;')
-    elif prop.cs_type == "bool":
-        lines.append(f'                case "{name}":')
-        lines.append(f'                    if (bool.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
-        lines.append('                    break;')
-    elif prop.cs_type == "DateOnly":
-        lines.append(f'                case "{name}":')
-        lines.append(f'                    if (DateOnly.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
-        lines.append('                    break;')
-    elif prop.cs_type == "DateTime":
-        lines.append(f'                case "{name}":')
-        lines.append(f'                    if (DateTime.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
-        lines.append('                    break;')
-    elif prop.cs_type == "TimeOnly":
-        lines.append(f'                case "{name}":')
-        lines.append(f'                    if (TimeOnly.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
+        lines.append(f'                    if ({t}.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
         lines.append('                    break;')
     else:
         lines.append(f'                case "{name}": cfg.{name} = value; break;')
@@ -366,7 +315,7 @@ def render_cs_sheet_class(sheet: SheetDef, ir: WorkbookIR) -> str:
             if sheet.schema == "standard":
                 lines.append('                var key   = row[0]?.ToString()?.Trim();')
                 lines.append('                var value = row[1]?.ToString()?.Trim() ?? "";')
-            else:  # asset
+            else:
                 lines.append('                var key = row[0]?.ToString()?.Trim();')
             lines.append("                switch (key)")
             lines.append("                {")
@@ -376,7 +325,6 @@ def render_cs_sheet_class(sheet: SheetDef, ir: WorkbookIR) -> str:
             lines.append("            }")
             lines.append("            return cfg;")
         else:
-            # Empty sheet: no data rows to map
             lines.append(f"            return new {sheet.class_name}();")
         lines.append("        }")
 
@@ -388,12 +336,12 @@ def render_cs_root_class(ir: WorkbookIR) -> str:
     acc = _accessor(ir.readonly)
     lines = []
     if ir.emit_xml_docs:
-        lines.append(f"    /// <summary>Root configuration object.</summary>")
+        lines.append("    /// <summary>Root configuration object.</summary>")
     lines.append(f"    public class {ir.root_class}")
     lines.append("    {")
 
     for sheet in ir.sheets:
-        prop_name = sheet.class_name[:-6]  # strip "Config" suffix
+        prop_name = sheet.class_name[:-6]
         lines.append(f"        public {sheet.class_name} {prop_name} {acc} = new();")
 
     if ir.generate_loader:
@@ -439,7 +387,7 @@ def render_cs_root_class(ir: WorkbookIR) -> str:
             for sheet in ir.sheets
         )
         lines.append("")
-        lines.append(f'        public override string ToString() =>')
+        lines.append("        public override string ToString() =>")
         lines.append(f'            $"{ir.root_class} {{{{ {parts} }}}}";')
 
     if ir.generate_tojson:
@@ -486,7 +434,6 @@ def render_cs(ir: WorkbookIR) -> str:
 
     sections.append(f"namespace {ir.namespace}")
     sections.append("{")
-
     sections.append(render_cs_root_class(ir))
     sections.append("")
 
@@ -502,7 +449,6 @@ def render_cs(ir: WorkbookIR) -> str:
         sections.append(render_cs_sheet_class(sheet, ir))
         sections.append("")
 
-    # Remove trailing empty line inside namespace block
     if sections and sections[-1] == "":
         sections.pop()
 
@@ -511,31 +457,17 @@ def render_cs(ir: WorkbookIR) -> str:
 
 
 # ---------------------------------------------------------------------------
-# XAML generation (REF-pattern ClipboardData clipboard snippet)
+# XAML generation
 # ---------------------------------------------------------------------------
 
 
 def render_xaml(ir: WorkbookIR) -> str:
-    """
-    Render a ClipboardData XML snippet for direct paste into UiPath Studio.
-
-    REF-pattern (matches expected.xaml / InitAllSettings clipboard paste):
-      1. Declare dt_Tables and uipath_var variables in root Sequence
-      2. Initialize dt_Tables = New Dictionary(Of String, DataTable)
-      3. ui:ForEach over in_ConfigSheets -> ReadRange(WorkbookPath=in_ConfigFile, Sheet)
-         -> Assign dt_Tables(Sheet) = dt_CurrentSheet
-      4. Assign: uipath_var = RootClass.Load(dt_Tables)
-
-    Incoming arguments expected by the REF InitAllSettings interface:
-      in_ConfigFile    (String)                 — workbook path
-      in_ConfigSheets  (IEnumerable(Of String)) — sheet names to load
-    """
     var = ir.uipath_var
     root = ir.root_class
     load_label = var.removeprefix("out_") if var.startswith("out_") else var
 
     return (
-        '<?xml version="1.0" encoding="utf-16"?>'
+        '<?xml version="1.0" encoding="utf-8"?>'
         '<ClipboardData Version="1.0"'
         ' xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"'
         ' xmlns:p="http://schemas.microsoft.com/netfx/2009/xaml/activities"'
@@ -611,7 +543,7 @@ def render_xaml(ir: WorkbookIR) -> str:
 # ---------------------------------------------------------------------------
 
 
-def emit_diagnostics(ir: WorkbookIR, fmt: str, warnings: list[str]) -> None:
+def emit_diagnostics(ir: WorkbookIR, fmt: str) -> None:
     if fmt == "json":
         data = {
             "sheets": [
@@ -620,79 +552,20 @@ def emit_diagnostics(ir: WorkbookIR, fmt: str, warnings: list[str]) -> None:
             ],
             "needs_orchestrator_asset": ir.needs_orchestrator_asset,
             "needs_system_using": ir.needs_system_using,
-            "warnings": warnings,
         }
         print(json.dumps(data, indent=2), file=sys.stderr)
     else:
-        print(
-            f"ConFormMold: {len(ir.sheets)} sheet(s) processed"
-            + (f", {len(warnings)} warning(s)" if warnings else ""),
-            file=sys.stderr,
-        )
+        print(f"ConFormMold: {len(ir.sheets)} sheet(s) processed", file=sys.stderr)
         for s in ir.sheets:
             print(f"  {s.class_name} ({s.schema}, {len(s.properties)} properties)", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# Entry point (called from cli.py)
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate typed C# config classes and XAML clipboard snippet from UiPath Config.xlsx."
-    )
-    parser.add_argument(
-        "file", nargs="?", type=Path, default=None,
-        metavar="FILE",
-        help=f"Path to Config.xlsx (default: {DEFAULT_FILE})",
-    )
-    parser.add_argument("--namespace", default=DEFAULT_NAMESPACE, help="C# namespace (default: Cpmf.Config)")
-    parser.add_argument(
-        "--root-class", default=DEFAULT_ROOT_CLASS, dest="root_class",
-        help=f"Root aggregator class name (default: {DEFAULT_ROOT_CLASS})",
-    )
-    parser.add_argument("--dotnet-version", default=DEFAULT_DOTNET, choices=["net6", "net8"], dest="dotnet_version")
-    parser.add_argument("--no-xml-docs", action="store_false", dest="xml_docs", default=True, help="Suppress XML doc comments")
-    parser.add_argument("--sheets", default=None, help="Comma-separated sheet names to include (default: all)")
-
-    # Code-generation toggles
-    parser.set_defaults(generate_loader=True)
-    loader_group = parser.add_mutually_exclusive_group()
-    loader_group.add_argument(
-        "--generate-loader", action="store_true", dest="generate_loader",
-        help="Emit Load() and FromDataTable() methods (default: on)",
-    )
-    loader_group.add_argument(
-        "--no-loader", action="store_false", dest="generate_loader",
-        help="Suppress Load() and FromDataTable() methods",
-    )
-    parser.add_argument(
-        "--generate-tostring", action="store_true", dest="generate_tostring", default=False,
-        help="Emit override string ToString() on root class",
-    )
-    parser.add_argument(
-        "--generate-tojson", action="store_true", dest="generate_tojson", default=False,
-        help="Emit string ToJson() method + using System.Text.Json",
-    )
-    parser.add_argument(
-        "--generate-pristine", action="store_true", dest="generate_pristine", default=False,
-        help="Emit Schema dict + DriftReport class for drift detection",
-    )
-    parser.add_argument(
-        "--readonly", action="store_true", dest="readonly", default=False,
-        help="Use { get; init; } instead of { get; set; }",
-    )
-    parser.add_argument(
-        "--uipath-var", default=DEFAULT_UIPATH_VAR, dest="uipath_var",
-        help=f"UiPath variable name in XAML clipboard snippet (default: {DEFAULT_UIPATH_VAR})",
-    )
-
-    parser.add_argument("--output-cs", type=Path, default=None, dest="output_cs", help="Write C# to file (default: stdout)")
-    parser.add_argument("--output-xaml", type=Path, default=None, dest="output_xaml", help="Write XAML clipboard snippet to file (default: omitted)")
-    parser.add_argument("--format", choices=["text", "json"], default="text", dest="fmt", help="Diagnostic output format (default: text)")
-    args = parser.parse_args()
-
+def run(args) -> None:
     path = args.file if args.file is not None else DEFAULT_FILE
     sheet_filter = [s.strip() for s in args.sheets.split(",")] if args.sheets else None
 
@@ -723,8 +596,4 @@ def main() -> None:
             print(f"Error: cannot write {args.output_xaml}: {exc}", file=sys.stderr)
             sys.exit(1)
 
-    emit_diagnostics(ir, args.fmt, [])
-
-
-if __name__ == "__main__":
-    main()
+    emit_diagnostics(ir, args.fmt)

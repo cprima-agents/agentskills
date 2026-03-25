@@ -11,5 +11,8 @@ dev = [
     "ruff>=0.8",
 ]
 
+[tool.uv.workspace]
+members = ["skills/uips-config-tree"]
+
 [tool.pytest.ini_options]
 testpaths = ["skills"]

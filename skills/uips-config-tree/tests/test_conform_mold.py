@@ -9,7 +9,6 @@ Approach:
 """
 
 import subprocess
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -25,9 +24,9 @@ UI_NS = "http://schemas.uipath.com/workflow/activities"
 NS = {"p": P_NS, "ui": UI_NS}
 
 
-def run(script, *args):
+def run(*args):
     return subprocess.run(
-        [sys.executable, str(script), *args],
+        ["uv", "run", "config-tree", "generate", *args],
         capture_output=True,
         text=True,
     )
@@ -93,29 +92,29 @@ def xaml_structural_rules(root: ET.Element) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_cs_exit_code(script, fixture_dir):
-    result = run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring")
+def test_cs_exit_code(fixture_dir):
+    result = run(str(fixture_dir / "input.xlsx"), "--generate-tostring")
     assert result.returncode == 0
 
 
-def test_cs_contains_namespace(script, fixture_dir):
-    result = run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring")
+def test_cs_contains_namespace(fixture_dir):
+    result = run(str(fixture_dir / "input.xlsx"), "--generate-tostring")
     assert "namespace Cpmf.Config" in result.stdout
 
 
-def test_cs_contains_root_class(script, fixture_dir):
-    result = run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring")
+def test_cs_contains_root_class(fixture_dir):
+    result = run(str(fixture_dir / "input.xlsx"), "--generate-tostring")
     assert "class CodedConfig" in result.stdout
 
 
-def test_cs_contains_sheet_classes(script, fixture_dir):
-    result = run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring")
+def test_cs_contains_sheet_classes(fixture_dir):
+    result = run(str(fixture_dir / "input.xlsx"), "--generate-tostring")
     for cls in ("SettingsConfig", "ConstantsConfig", "AssetsConfig"):
         assert f"class {cls}" in result.stdout, f"Missing class {cls}"
 
 
-def test_cs_contains_loader(script, fixture_dir):
-    result = run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring")
+def test_cs_contains_loader(fixture_dir):
+    result = run(str(fixture_dir / "input.xlsx"), "--generate-tostring")
     assert "FromDataTable" in result.stdout
     assert "Load(" in result.stdout
 
@@ -125,10 +124,9 @@ def test_cs_contains_loader(script, fixture_dir):
 # ---------------------------------------------------------------------------
 
 
-def test_xaml_exit_code_and_file_created(script, fixture_dir, tmp_path):
+def test_xaml_exit_code_and_file_created(fixture_dir, tmp_path):
     out = tmp_path / "out.xaml"
     result = run(
-        script,
         str(fixture_dir / "input.xlsx"),
         "--generate-tostring",
         "--output-xaml",
@@ -138,14 +136,14 @@ def test_xaml_exit_code_and_file_created(script, fixture_dir, tmp_path):
     assert out.exists()
 
 
-def test_xaml_is_valid_xml(script, fixture_dir, tmp_path):
+def test_xaml_is_valid_xml(fixture_dir, tmp_path):
     out = tmp_path / "out.xaml"
-    run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring", "--output-xaml", str(out))
+    run(str(fixture_dir / "input.xlsx"), "--generate-tostring", "--output-xaml", str(out))
     root = parse_xaml(out)  # raises ET.ParseError if malformed
     assert root is not None
 
 
-def test_xaml_structural_rules_pass_for_at_least_one_expected(script, fixture_dir, tmp_path):
+def test_xaml_structural_rules_pass_for_at_least_one_expected(fixture_dir, tmp_path):
     """
     Generate XAML and verify it satisfies the structural rules of at least one
     expected*.xaml reference file in the fixture directory.
@@ -159,7 +157,7 @@ def test_xaml_structural_rules_pass_for_at_least_one_expected(script, fixture_di
         pytest.skip("No expected*.xaml files in fixture directory")
 
     out = tmp_path / "out.xaml"
-    run(script, str(fixture_dir / "input.xlsx"), "--generate-tostring", "--output-xaml", str(out))
+    run(str(fixture_dir / "input.xlsx"), "--generate-tostring", "--output-xaml", str(out))
     generated_root = parse_xaml(out)
 
     # Collect results per expected file
@@ -182,18 +180,18 @@ def test_xaml_structural_rules_pass_for_at_least_one_expected(script, fixture_di
 # ---------------------------------------------------------------------------
 
 
-def test_missing_file_exits_1(script):
-    assert run(script, "nonexistent.xlsx").returncode == 1
+def test_missing_file_exits_1():
+    assert run("nonexistent.xlsx").returncode == 1
 
 
-def test_wrong_extension_exits_1(script):
-    assert run(script, "input.csv").returncode == 1
+def test_wrong_extension_exits_1():
+    assert run("input.csv").returncode == 1
 
 
-def test_bad_header_warns(script):
+def test_bad_header_warns():
     bad = Path("D:/github.com/rpapub/ConFormMold/test/fixtures/Config_BadHeader.xlsx")
     if not bad.exists():
         pytest.skip("upstream ConFormMold fixtures not available")
-    result = run(script, str(bad))
+    result = run(str(bad))
     assert result.returncode == 0
     assert "[WARN]" in result.stderr

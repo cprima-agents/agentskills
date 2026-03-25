@@ -718,7 +718,7 @@ def main() -> None:
     if args.output_xaml:
         xaml_output = render_xaml(ir)
         try:
-            args.output_xaml.write_text(xaml_output, encoding="utf-16")
+            args.output_xaml.write_text(xaml_output, encoding="utf-8")
         except OSError as exc:
             print(f"Error: cannot write {args.output_xaml}: {exc}", file=sys.stderr)
             sys.exit(1)

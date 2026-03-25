@@ -34,8 +34,8 @@ def run(script, *args):
 
 
 def parse_xaml(path: Path) -> ET.Element:
-    """Parse a utf-16 XAML file; raises ET.ParseError if malformed."""
-    content = path.read_text(encoding="utf-16")
+    """Parse a XAML file (utf-8); raises ET.ParseError if malformed."""
+    content = path.read_text(encoding="utf-8")
     return ET.fromstring(content)
 
 

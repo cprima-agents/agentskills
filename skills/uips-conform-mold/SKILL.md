@@ -63,7 +63,16 @@ print('net8' if major >= 25 else 'net6')
 v23 and v24 share identical dependency versions and cannot be distinguished
 from `project.json` alone — treat both as `net6`.
 
-Pass the detected value to the generator:
+Also read the project `name` from `project.json` — the assembly name used in
+all Studio integration steps is `{name}.Core`:
+
+```bash
+ASSEMBLY=$(python -c "import json; print(json.load(open('project.json'))['name'] + '.Core')")
+```
+
+## Automated tasks (agent executes)
+
+Resolve both variables first, then run the generator once for both outputs:
 
 ```bash
 DOTNET=$(python -c "
@@ -73,34 +82,26 @@ sys_act = data.get('dependencies', {}).get('UiPath.System.Activities', '[22')
 major = int(re.search(r'\[(\d+)', sys_act).group(1))
 print('net8' if major >= 25 else 'net6')
 ")
+ASSEMBLY=$(python -c "import json; print(json.load(open('project.json'))['name'] + '.Core')")
+CONFIG=$(ls Data/Config*.xlsx | head -1)
 
-uv run skills/uips-conform-mold/scripts/conform_mold.py Data/Config*.xlsx \
+# Task 1 — C# to stdout, save to Lib/Config.cs
+uv run skills/uips-conform-mold/scripts/conform_mold.py "$CONFIG" \
+    --generate-tostring \
+    --dotnet-version "$DOTNET" \
+    > Lib/Config.cs
+
+# Task 4 — XAML clipboard snippet to file
+uv run skills/uips-conform-mold/scripts/conform_mold.py "$CONFIG" \
     --generate-tostring \
     --dotnet-version "$DOTNET" \
     --output-xaml LoadTypedConfig.xaml
 ```
 
-## Automated tasks (agent executes)
-
-### Task 1 — Generate Config.cs
-
-```bash
-uv run skills/uips-conform-mold/scripts/conform_mold.py Data/Config.xlsx \
-    --generate-tostring
-```
-
-C# is written to stdout. Redirect or copy to `Lib/Config.cs` in the project.
-
-### Task 4 — Generate XAML clipboard snippet
-
-```bash
-uv run skills/uips-conform-mold/scripts/conform_mold.py Data/Config.xlsx \
-    --generate-tostring \
-    --output-xaml LoadTypedConfig.xaml
-```
-
-File is written as UTF-8 (no BOM). User must open in Notepad, Ctrl+A, Ctrl+C
-before pasting into Studio — do not copy from terminal or chat output.
+`Lib/Config.cs` is ready to copy into the project.
+`LoadTypedConfig.xaml` is written as UTF-8 (no BOM). User must open in
+Notepad, Ctrl+A, Ctrl+C before pasting into Studio — do not copy from
+terminal or chat output.
 
 ## Manual tasks (hand off to user)
 
@@ -158,8 +159,11 @@ Add `Cpmf.Config`. Studio resolves the assembly name from the project name.
 
 ```diff
 +      <x:String>Cpmf.Config</x:String>
-+      <AssemblyReference>ConFormMold_REF_v23.Core</AssemblyReference>
++      <AssemblyReference>{ASSEMBLY}</AssemblyReference>
 ```
+
+`{ASSEMBLY}` = `project.json → name` + `.Core` (e.g. `MyProject.Core`).
+Studio resolves the assembly name from the project name automatically.
 
 ---
 
@@ -170,7 +174,7 @@ Three edits in `Framework/InitAllSettings.xaml`:
 **7a.** Add `xmlns:cc` to the root Activity element:
 
 ```diff
-+xmlns:cc="clr-namespace:Cpmf.Config;assembly=ConFormMold_REF_v23.Core"
++xmlns:cc="clr-namespace:Cpmf.Config;assembly={ASSEMBLY}"
 ```
 
 **7b.** Declare `out_ConFigTree` as a typed OutArgument in `x:Members`:
@@ -199,7 +203,7 @@ Three edits in `Framework/InitAllSettings.xaml`:
 In `Tests/TestCase_InitAllSettings.xaml`, add `xmlns:cc` to the root element:
 
 ```diff
-+xmlns:cc="clr-namespace:Cpmf.Config;assembly=ConFormMold_REF_v23.Core"
++xmlns:cc="clr-namespace:Cpmf.Config;assembly={ASSEMBLY}"
 ```
 
 Add `ConFigTree` as a variable at the **parent** TestCase sequence (not inside

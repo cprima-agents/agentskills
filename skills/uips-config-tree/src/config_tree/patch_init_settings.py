@@ -29,10 +29,10 @@ def run(assembly: str, xaml_snippet: Path) -> None:
     original = target.read_text(encoding="utf-8")
     text = original
 
-    # namespace import (NamespacesForImplementation uses sco:Collection)
+    # namespace import — insert inside sco:Collection, before its closing tag
     if "<x:String>Cpmf.Config</x:String>" not in text:
         text = re.sub(
-            r"(\s*</[^>]*NamespacesForImplementation>)",
+            r"(\s*</sco:Collection>\s*</[^>]*NamespacesForImplementation>)",
             r"\n      <x:String>Cpmf.Config</x:String>\1",
             text, count=1,
         )
@@ -88,6 +88,9 @@ def run(assembly: str, xaml_snippet: Path) -> None:
             print(f"ERROR: {xaml_snippet} has no ClipboardData.Data element.", file=sys.stderr)
             sys.exit(1)
         paste = m.group(1).strip()
+        # The clipboard fragment uses xmlns:p for the default activity namespace.
+        # In the parent document the default namespace covers these — strip the prefix.
+        paste = paste.replace("<p:", "<").replace("</p:", "</")
         marker = "\n  </Sequence>\n</Activity>"
         idx = text.rfind(marker)
         if idx == -1:

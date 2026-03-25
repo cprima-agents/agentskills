@@ -55,10 +55,10 @@ def run(assembly: str) -> None:
             1,
         )
 
-    # namespace import
+    # namespace import — insert inside sco:Collection, before its closing tag
     if "<x:String>Cpmf.Config</x:String>" not in text:
         text = re.sub(
-            r"(\s*</[^>]*NamespacesForImplementation>)",
+            r"(\s*</sco:Collection>\s*</[^>]*NamespacesForImplementation>)",
             r"\n      <x:String>Cpmf.Config</x:String>\1",
             text, count=1,
         )

@@ -172,6 +172,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
     counts: dict[str, int] = defaultdict(int)
     errors: list[dict] = []
     warnings: list[dict] = []
+    user_messages: list[dict] = []
 
     for entry in entries:
         level = entry.get("level", "Unknown")
@@ -180,6 +181,8 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
             errors.append(entry)
         elif level == "Warning":
             warnings.append(entry)
+        if entry.get("logType") == "User":
+            user_messages.append(entry)
 
     ended_normally = "execution ended" in last.get("message", "").lower()
     has_errors = bool(errors)
@@ -206,6 +209,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
         "counts": dict(counts),
         "errors": errors,
         "warnings": warnings,
+        "user_messages": user_messages,
         "_entries": entries,
     }
 
@@ -234,6 +238,13 @@ def print_report(summaries: list[dict], show_warnings: bool = False) -> None:
         print(f"       Initiated: {s['initiatedBy']}  |  Robot: {s['robotName']}")
         print(f"       Duration : {duration}")
         print(f"       Levels   : {_level_badge(s['counts'])}")
+
+        if s["user_messages"]:
+            print(f"       Messages ({len(s['user_messages'])}):")
+            for m in s["user_messages"]:
+                ts = m.get("timeStamp", "")[:19].replace("T", " ")
+                msg = m.get("message", "").replace("\r\n", " | ").replace("\n", " | ")
+                print(f"         [{ts}] {msg}")
 
         if s["errors"]:
             print(f"       Errors ({len(s['errors'])}):")
@@ -329,6 +340,8 @@ def main() -> None:
         if not files[0].exists():
             print(f"Error: file not found: {args.file}", file=sys.stderr)
             sys.exit(1)
+        if not args.show_all and args.last == 1:
+            args.show_all = True  # show all runs when a file is explicitly provided
     else:
         locations = [Path(args.log_dir)] if args.log_dir else None
         files = find_execution_log_files(days=args.days, locations=locations)
@@ -394,7 +407,7 @@ def main() -> None:
     else:
         hint = "" if args.show_all else " (use --last N or --all to see more)"
         print(
-            f"UiPath Execution Log — showing {shown} of {total} run(s)"
+            f"UiPath Execution Log - showing {shown} of {total} run(s)"
             f" from {len(files)} file(s){hint}",
             file=sys.stderr,
         )

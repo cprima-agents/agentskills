@@ -1,6 +1,19 @@
 # agentskills
 
-A collection of agent skills.
+A collection of agent skills for UiPath Studio development workflows.
+
+## Installation (Claude Code)
+
+```
+/plugin marketplace add cprima-agents/agentskills
+/plugin install uips-skills@agentskills
+```
+
+## Skills
+
+| Skill | Description |
+|-------|-------------|
+| [uips-log-parser](skills/uips-log-parser/) | Parse and analyse UiPath Studio local execution logs to diagnose automation runs |
 
 ## Licensing
 

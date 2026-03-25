@@ -1,0 +1,23 @@
+name: Strip docs/ from main
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**']
+
+jobs:
+  strip-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove docs/ and commit if present
+        run: |
+          git rm -r --ignore-unmatch docs/
+          git diff --cached --quiet && echo "docs/ not present, nothing to do." && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: remove docs/ from main [skip ci]"
+          git push

@@ -274,10 +274,20 @@ def _from_data_table_case(prop: PropertyDef) -> list[str]:
         lines.append('                    break;')
     elif prop.cs_type == "string":
         lines.append(f'                case "{name}": cfg.{name} = value; break;')
-    elif prop.cs_type in ("int", "double", "bool", "DateOnly", "DateTime", "TimeOnly"):
+    elif prop.cs_type in ("int", "double", "bool", "DateTime"):
         t = prop.cs_type
         lines.append(f'                case "{name}":')
         lines.append(f'                    if ({t}.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
+        lines.append('                    break;')
+    elif prop.cs_type == "DateOnly":
+        lines.append(f'                case "{name}":')
+        lines.append(f'                    if (DateOnly.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
+        lines.append(f'                    else if (DateTime.TryParse(value, out var dt_{name})) cfg.{name} = DateOnly.FromDateTime(dt_{name});')
+        lines.append('                    break;')
+    elif prop.cs_type == "TimeOnly":
+        lines.append(f'                case "{name}":')
+        lines.append(f'                    if (TimeOnly.TryParse(value, out var v_{name})) cfg.{name} = v_{name};')
+        lines.append(f'                    else if (DateTime.TryParse(value, out var dt_{name})) cfg.{name} = TimeOnly.FromDateTime(dt_{name});')
         lines.append('                    break;')
     else:
         lines.append(f'                case "{name}": cfg.{name} = value; break;')

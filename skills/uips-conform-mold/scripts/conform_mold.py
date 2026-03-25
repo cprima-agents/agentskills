@@ -519,91 +519,89 @@ def render_xaml(ir: WorkbookIR) -> str:
     """
     Render a ClipboardData XML snippet for direct paste into UiPath Studio.
 
-    REF-pattern:
-      1. Declare dt_Tables and uipath_var variables
-      2. Init dt_Tables = new Dictionary(Of String, DataTable)
-      3. ExcelApplicationScope(in_ConfigFilePath) -> ForEach(in_ConfigSheets)
-         -> ReadRange(in_SheetName) -> dt_Tables.Add(in_SheetName, dt_CurrentSheet)
+    REF-pattern (matches expected.xaml / InitAllSettings clipboard paste):
+      1. Declare dt_Tables and uipath_var variables in root Sequence
+      2. Initialize dt_Tables = New Dictionary(Of String, DataTable)
+      3. ui:ForEach over in_ConfigSheets -> ReadRange(WorkbookPath=in_ConfigFile, Sheet)
+         -> Assign dt_Tables(Sheet) = dt_CurrentSheet
       4. Assign: uipath_var = RootClass.Load(dt_Tables)
 
-    Expects incoming arguments: in_ConfigFilePath (String), in_ConfigSheets (IEnumerable(Of String))
-    matching the REFramework InitAllSettings interface.
+    Incoming arguments expected by the REF InitAllSettings interface:
+      in_ConfigFile    (String)                 — workbook path
+      in_ConfigSheets  (IEnumerable(Of String)) — sheet names to load
     """
     var = ir.uipath_var
     root = ir.root_class
+    load_label = var.removeprefix("out_") if var.startswith("out_") else var
 
     return (
-        '<?xml version="1.0" encoding="utf-16"?>\n'
-        '<ClipboardData Version="1.0"\n'
-        '  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"\n'
-        '  xmlns:p="http://schemas.microsoft.com/netfx/2009/xaml/activities"\n'
-        '  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"\n'
-        '  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"\n'
-        '  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"\n'
-        '  xmlns:ui="http://schemas.uipath.com/workflow/activities"\n'
-        '  xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common">\n'
-        '  <ClipboardData.Data>\n'
-        '    <scg:List x:TypeArguments="x:Object" Capacity="1">\n'
-        f'      <p:Sequence x:Name="__ReferenceID0" DisplayName="{var}"\n'
-        f'          sap2010:Annotation.AnnotationText="{var} typed config loader&#xD;&#xA;@see https://rpapub.github.io/ConFormMold/">\n'
-        '        <p:Sequence.Variables>\n'
-        '          <p:Variable x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)" Name="dt_Tables" />\n'
-        f'          <p:Variable x:TypeArguments="x:Object" Name="{var}" />\n'
-        '        </p:Sequence.Variables>\n'
-        '        <p:Assign DisplayName="Init dt_Tables">\n'
-        '          <p:Assign.To>\n'
-        '            <OutArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[dt_Tables]</OutArgument>\n'
-        '          </p:Assign.To>\n'
-        '          <p:Assign.Value>\n'
-        '            <InArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[New Dictionary(Of String, DataTable)()]</InArgument>\n'
-        '          </p:Assign.Value>\n'
-        '        </p:Assign>\n'
-        '        <ui:ExcelApplicationScope DisplayName="Open Config.xlsx" WorkbookPath="[in_ConfigFilePath]">\n'
-        '          <ui:ExcelApplicationScope.Body>\n'
-        '            <ActivityAction>\n'
-        '              <ActivityAction.Argument>\n'
-        '                <DelegateInArgument x:TypeArguments="ui:WorkbookApplication" Name="ExcelWorkbookScope" />\n'
-        '              </ActivityAction.Argument>\n'
-        '              <p:ForEach x:TypeArguments="x:String" DisplayName="ForEach Sheet in in_ConfigSheets" Values="[in_ConfigSheets]">\n'
-        '                <p:ForEach.Body>\n'
-        '                  <ActivityAction x:TypeArguments="x:String">\n'
-        '                    <ActivityAction.Argument>\n'
-        '                      <DelegateInArgument x:TypeArguments="x:String" Name="in_SheetName" />\n'
-        '                    </ActivityAction.Argument>\n'
-        '                    <p:Sequence>\n'
-        '                      <p:Sequence.Variables>\n'
-        '                        <p:Variable x:TypeArguments="sd:DataTable" Name="dt_CurrentSheet" />\n'
-        '                      </p:Sequence.Variables>\n'
-        '                      <ui:ReadRange SheetName="[in_SheetName]" AddHeaders="True" DataTable="[dt_CurrentSheet]" />\n'
-        '                      <p:InvokeMethod MethodName="Add" TargetObject="[dt_Tables]">\n'
-        '                        <p:InvokeMethod.Parameters>\n'
-        '                          <InArgument x:TypeArguments="x:String">[in_SheetName]</InArgument>\n'
-        '                          <InArgument x:TypeArguments="sd:DataTable">[dt_CurrentSheet]</InArgument>\n'
-        '                        </p:InvokeMethod.Parameters>\n'
-        '                      </p:InvokeMethod>\n'
-        '                    </p:Sequence>\n'
-        '                  </ActivityAction>\n'
-        '                </p:ForEach.Body>\n'
-        '              </p:ForEach>\n'
-        '            </ActivityAction>\n'
-        '          </ui:ExcelApplicationScope.Body>\n'
-        '        </ui:ExcelApplicationScope>\n'
-        '        <p:Assign DisplayName="Load typed config">\n'
-        '          <p:Assign.To>\n'
-        f'            <OutArgument x:TypeArguments="x:Object">[{var}]</OutArgument>\n'
-        '          </p:Assign.To>\n'
-        '          <p:Assign.Value>\n'
-        f'            <InArgument x:TypeArguments="x:Object">[{root}.Load(dt_Tables)]</InArgument>\n'
-        '          </p:Assign.Value>\n'
-        '        </p:Assign>\n'
-        '      </p:Sequence>\n'
-        '    </scg:List>\n'
-        '  </ClipboardData.Data>\n'
-        '  <ClipboardData.Metadata>\n'
-        '    <scg:List x:TypeArguments="x:Object" Capacity="1">\n'
-        '      <x:Null />\n'
-        '    </scg:List>\n'
-        '  </ClipboardData.Metadata>\n'
+        '<?xml version="1.0" encoding="utf-16"?>'
+        '<ClipboardData Version="1.0"'
+        ' xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"'
+        ' xmlns:p="http://schemas.microsoft.com/netfx/2009/xaml/activities"'
+        ' xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"'
+        ' xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"'
+        ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
+        ' xmlns:ui="http://schemas.uipath.com/workflow/activities"'
+        ' xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common">'
+        '<ClipboardData.Data>'
+        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
+        f'<p:Sequence x:Name="__ReferenceID0" DisplayName="{var}"'
+        f' sap2010:Annotation.AnnotationText="{var} typed config loader&#xD;&#xA;@see https://rpapub.github.io/ConFormMold/">'
+        '<p:Sequence.Variables>'
+        '<p:Variable x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)" Name="dt_Tables" />'
+        f'<p:Variable x:TypeArguments="x:Object" Name="{var}" />'
+        '</p:Sequence.Variables>'
+        '<p:Assign DisplayName="Initialize dt_Tables">'
+        '<p:Assign.To>'
+        '<p:OutArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[dt_Tables]</p:OutArgument>'
+        '</p:Assign.To>'
+        '<p:Assign.Value>'
+        '<p:InArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[New Dictionary(Of String, DataTable)]</p:InArgument>'
+        '</p:Assign.Value>'
+        '</p:Assign>'
+        '<ui:ForEach x:TypeArguments="x:String" CurrentIndex="{x:Null}"'
+        ' DisplayName="For each sheet \u2014 ReadRange into dt_Tables" Values="[in_ConfigSheets]">'
+        '<ui:ForEach.Body>'
+        '<p:ActivityAction x:TypeArguments="x:String">'
+        '<p:ActivityAction.Argument>'
+        '<p:DelegateInArgument x:TypeArguments="x:String" Name="Sheet" />'
+        '</p:ActivityAction.Argument>'
+        '<p:Sequence DisplayName="Read sheet into dt_Tables">'
+        '<p:Sequence.Variables>'
+        '<p:Variable x:TypeArguments="sd:DataTable" Name="dt_CurrentSheet" />'
+        '</p:Sequence.Variables>'
+        '<ui:ReadRange AddHeaders="True" SheetName="[Sheet]" WorkbookPath="[in_ConfigFile]" DataTable="[dt_CurrentSheet]" Range="{x:Null}" />'
+        '<p:Assign DisplayName="Add sheet to dt_Tables">'
+        '<p:Assign.To>'
+        '<p:OutArgument x:TypeArguments="sd:DataTable">[dt_Tables(Sheet)]</p:OutArgument>'
+        '</p:Assign.To>'
+        '<p:Assign.Value>'
+        '<p:InArgument x:TypeArguments="sd:DataTable">[dt_CurrentSheet]</p:InArgument>'
+        '</p:Assign.Value>'
+        '</p:Assign>'
+        '</p:Sequence>'
+        '</p:ActivityAction>'
+        '</ui:ForEach.Body>'
+        '</ui:ForEach>'
+        f'<p:Assign DisplayName="Load {load_label}">'
+        '<p:Assign.To>'
+        f'<p:OutArgument x:TypeArguments="x:Object">[{var}]</p:OutArgument>'
+        '</p:Assign.To>'
+        '<p:Assign.Value>'
+        f'<p:InArgument x:TypeArguments="x:Object">[{root}.Load(dt_Tables)]</p:InArgument>'
+        '</p:Assign.Value>'
+        '</p:Assign>'
+        '</p:Sequence>'
+        '</scg:List>'
+        '</ClipboardData.Data>'
+        '<ClipboardData.Metadata>'
+        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
+        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
+        '<x:Reference>__ReferenceID0</x:Reference>'
+        '</scg:List>'
+        '</scg:List>'
+        '</ClipboardData.Metadata>'
         '</ClipboardData>\n'
     )
 
@@ -720,7 +718,7 @@ def main() -> None:
     if args.output_xaml:
         xaml_output = render_xaml(ir)
         try:
-            args.output_xaml.write_text(xaml_output, encoding="utf-16")
+            args.output_xaml.write_text(xaml_output, encoding="utf-8")
         except OSError as exc:
             print(f"Error: cannot write {args.output_xaml}: {exc}", file=sys.stderr)
             sys.exit(1)

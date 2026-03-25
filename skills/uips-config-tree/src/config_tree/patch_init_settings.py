@@ -87,7 +87,11 @@ def run(assembly: str, xaml_snippet: Path) -> None:
         if not m:
             print(f"ERROR: {xaml_snippet} has no ClipboardData.Data element.", file=sys.stderr)
             sys.exit(1)
-        paste = m.group(1).strip()
+        # ClipboardData.Data wraps its content in <scg:List x:TypeArguments="x:Object">.
+        # Unwrap to get just the inner Activity element — Sequence only accepts Activity children.
+        raw = m.group(1).strip()
+        inner = re.search(r"<scg:List[^>]*>(.*?)</scg:List>", raw, re.DOTALL)
+        paste = inner.group(1).strip() if inner else raw
         # The clipboard fragment uses xmlns:p for the default activity namespace.
         # In the parent document the default namespace covers these — strip the prefix.
         paste = paste.replace("<p:", "<").replace("</p:", "</")

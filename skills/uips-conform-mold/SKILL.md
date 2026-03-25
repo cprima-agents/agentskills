@@ -1,5 +1,5 @@
 ---
-name: uips-conform-mold
+name: ConFigTree
 description: >
   Generate a typed C# CodedConfig class and a UiPath clipboard snippet from a
   REFramework Config.xlsx. Use when a developer wants to replace

@@ -172,6 +172,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
     counts: dict[str, int] = defaultdict(int)
     errors: list[dict] = []
     warnings: list[dict] = []
+    user_messages: list[dict] = []
 
     for entry in entries:
         level = entry.get("level", "Unknown")
@@ -180,6 +181,8 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
             errors.append(entry)
         elif level == "Warning":
             warnings.append(entry)
+        if entry.get("logType") == "User":
+            user_messages.append(entry)
 
     ended_normally = "execution ended" in last.get("message", "").lower()
     has_errors = bool(errors)
@@ -206,6 +209,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
         "counts": dict(counts),
         "errors": errors,
         "warnings": warnings,
+        "user_messages": user_messages,
         "_entries": entries,
     }
 
@@ -234,6 +238,13 @@ def print_report(summaries: list[dict], show_warnings: bool = False) -> None:
         print(f"       Initiated: {s['initiatedBy']}  |  Robot: {s['robotName']}")
         print(f"       Duration : {duration}")
         print(f"       Levels   : {_level_badge(s['counts'])}")
+
+        if s["user_messages"]:
+            print(f"       Messages ({len(s['user_messages'])}):")
+            for m in s["user_messages"]:
+                ts = m.get("timeStamp", "")[:19].replace("T", " ")
+                msg = m.get("message", "").replace("\r\n", " | ").replace("\n", " | ")
+                print(f"         [{ts}] {msg[:300]}")
 
         if s["errors"]:
             print(f"       Errors ({len(s['errors'])}):")

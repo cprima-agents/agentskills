@@ -81,9 +81,8 @@ Tell the user:
 >
 > After re-opening, Studio will show an **"Import Arguments"** prompt on the
 > `InvokeWorkflowFile` in `TestCase_InitAllSettings.xaml` — this is expected.
-> The patcher has already pre-added the correct `out_ConFigTree` binding;
-> clicking **Import Arguments** simply confirms it. No bindings need to be
-> set manually.
+> The patcher has already set the `out_ConFigTree` binding to `[ConFigTree]`;
+> clicking **Import Arguments** simply confirms it.
 
 ## Finalize
 

@@ -85,12 +85,14 @@ def run(assembly: str) -> None:
             1,
         )
 
-    # OutArgument binding on InvokeWorkflowFile
+    # OutArgument binding on InvokeWorkflowFile — use VisualBasicReference format
+    # so Studio recognises the pre-set expression and does not overwrite it on Import Arguments.
     if 'x:Key="out_ConFigTree"' not in text:
         text = text.replace(
             "</ui:InvokeWorkflowFile.Arguments>",
-            '          <OutArgument x:TypeArguments="cc:CodedConfig"'
-            ' x:Key="out_ConFigTree">[ConFigTree]</OutArgument>'
+            '          <OutArgument x:TypeArguments="cc:CodedConfig" x:Key="out_ConFigTree">'
+            '<VisualBasicReference x:TypeArguments="cc:CodedConfig" ExpressionText="ConFigTree" />'
+            "</OutArgument>"
             "\n        </ui:InvokeWorkflowFile.Arguments>",
             1,
         )

@@ -15,7 +15,7 @@
       "strict": false,
       "skills": [
         "./skills/uips-log-parser",
-        "./skills/uips-conform-mold"
+        "./skills/uips-config-tree"
       ]
     }
   ]

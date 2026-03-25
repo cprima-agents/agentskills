@@ -31,13 +31,32 @@ test -f Framework/InitAllSettings.xaml
 ls Data/Config*.xlsx
 ```
 
-| Check | Path | Absence means |
+```bash
+# Check for UiPath.CodedWorkflows or any coded-workflow-capable package
+python -c "
+import json, sys
+deps = json.load(open('project.json')).get('dependencies', {})
+coded = [k for k in deps if 'Coded' in k or 'coded' in k]
+print(coded[0] if coded else '')
+"
+```
+
+| Check | Path / key | Absence means |
 |---|---|---|
 | REFramework indicator | `Framework/InitAllSettings.xaml` | Not a REFramework project — skill does not apply |
 | Config input | `Data/Config*.xlsx` | Nothing to generate from — ask user for the file location |
+| Coded workflows support | `project.json` → any `*Coded*` dependency | Studio will refuse to compile `Config.cs`; user must install `UiPath.CodedWorkflows` via Package Manager first |
 
-If either check fails, stop and tell the user this skill targets REFramework
-template-based projects and cannot proceed without these files.
+If the REFramework or config check fails, stop and tell the user this skill
+targets REFramework template-based projects and cannot proceed without these
+files.
+
+If `UiPath.CodedWorkflows` (or equivalent) is absent, stop with:
+
+> This skill generates a C# coded class. Studio requires the
+> `UiPath.CodedWorkflows` package to compile it. Please open the project in
+> Studio, go to **Manage Packages**, and install `UiPath.CodedWorkflows` before
+> continuing. Once installed, re-run this skill.
 
 ## Version detection
 
@@ -86,13 +105,13 @@ ASSEMBLY=$(python -c "import json; print(json.load(open('project.json'))['name']
 CONFIG=$(ls Data/Config*.xlsx | head -1)
 
 # Task 1 — C# to stdout, save to Lib/Config.cs
-uv run skills/uips-conform-mold/scripts/conform_mold.py "$CONFIG" \
+uv run --script skills/uips-config-tree/scripts/conform_mold.py "$CONFIG" \
     --generate-tostring \
     --dotnet-version "$DOTNET" \
     > Lib/Config.cs
 
 # Task 4 — XAML clipboard snippet to file
-uv run skills/uips-conform-mold/scripts/conform_mold.py "$CONFIG" \
+uv run --script skills/uips-config-tree/scripts/conform_mold.py "$CONFIG" \
     --generate-tostring \
     --dotnet-version "$DOTNET" \
     --output-xaml LoadTypedConfig.xaml
@@ -268,6 +287,7 @@ All use `ContinueOnFailure="True"`.
 
 ## Gotchas
 
+- If Studio shows *"Please import the UiPath.CodedWorkflows package or at least one package supporting coded workflows"*, the project is missing the coded-workflow dependency. Install `UiPath.CodedWorkflows` via **Manage Packages** before Task 3.
 - Paste the XAML from the **file** via Notepad — not from terminal or chat output. Extra characters before `<?xml` cause Studio to reject the paste.
 - Task 3 (opening in Studio) must happen before task 5 (paste) so `UiPath.CodedWorkflows` is present.
 - Task 6 (namespace import) must happen before task 7 (type promotion) so Studio can resolve `cc:CodedConfig`.

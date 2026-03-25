@@ -1,5 +1,8 @@
 {
   "name": "agentskills",
+  "owner": {
+    "name": "Christian Prior-Mamulyan"
+  },
   "metadata": {
     "description": "Agent skills for UiPath Studio (uips) development workflows",
     "version": "0.1.0"

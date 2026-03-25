@@ -244,7 +244,7 @@ def print_report(summaries: list[dict], show_warnings: bool = False) -> None:
             for m in s["user_messages"]:
                 ts = m.get("timeStamp", "")[:19].replace("T", " ")
                 msg = m.get("message", "").replace("\r\n", " | ").replace("\n", " | ")
-                print(f"         [{ts}] {msg[:300]}")
+                print(f"         [{ts}] {msg}")
 
         if s["errors"]:
             print(f"       Errors ({len(s['errors'])}):")

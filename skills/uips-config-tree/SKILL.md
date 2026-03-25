@@ -78,6 +78,12 @@ Tell the user:
 > Generate is complete. **Close the project and re-open it in Studio** so
 > Studio restores the new `UiPath.CodedWorkflows` dependency. The workflow
 > will compile and run once the package restore finishes.
+>
+> After re-opening, Studio will show an **"Import Arguments"** prompt on the
+> `InvokeWorkflowFile` in `TestCase_InitAllSettings.xaml` — this is expected.
+> The patcher has already pre-added the correct `out_ConFigTree` binding;
+> clicking **Import Arguments** simply confirms it. No bindings need to be
+> set manually.
 
 ## Finalize
 
@@ -91,6 +97,10 @@ Tell the user:
 Property-value assertions (`ConFigTree.Settings.X = expected`) depend on the
 project's test fixture data and must be added manually after verifying the
 generated typed class against `Data/Config_Test.xlsx`.
+
+`patch-testcase` is idempotent — re-running it on an already-patched file
+preserves manually-added assertions. If the project files are reset from the
+template, all manual additions are lost (the template does not include them).
 
 ## Key CLI flags
 

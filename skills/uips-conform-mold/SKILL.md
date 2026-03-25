@@ -45,18 +45,151 @@ before pasting into Studio — do not copy from terminal or chat output.
 ## Manual tasks (hand off to user)
 
 After running the script, instruct the user to perform these steps in order
-in UiPath Studio:
+in UiPath Studio.
 
-| # | Task | Where |
-|---|---|---|
-| 2 | Copy `Config.cs` → `Lib/Config.cs` | File system |
-| 3 | Open project in Studio | Studio auto-adds `UiPath.CodedWorkflows` to `project.json` |
-| 5 | Paste XAML snippet at bottom of "Initialize All Settings" Sequence | `Framework/InitAllSettings.xaml` |
-| 6 | Import namespace `Cpmf.Config` | Studio Imports panel |
-| 7 | Promote `out_ConFigTree` from local variable to `OutArgument(cc:CodedConfig)` | `Framework/InitAllSettings.xaml` |
-| 8 | Declare typed receiver variable `ConFigTree` at parent TestCase sequence scope | `Tests/TestCase_InitAllSettings.xaml` |
-| 9 | Wire `out_ConFigTree` into `InvokeWorkflowFile.Arguments` | `Tests/TestCase_InitAllSettings.xaml` |
-| 10 | Add `VerifyExpression` assertions for object identity and typed properties | `Tests/TestCase_InitAllSettings.xaml` |
+---
+
+### Task 2 — Copy Config.cs into the project
+
+Copy the generated file to:
+
+```
+Lib/Config.cs
+```
+
+---
+
+### Task 3 — Open project in Studio
+
+Open the project. Studio detects `Lib/Config.cs` and automatically adds
+`UiPath.CodedWorkflows` to `project.json`:
+
+```diff
++    "UiPath.CodedWorkflows": "[24.10.2]",
+```
+
+---
+
+### Task 5 — Paste XAML snippet into InitAllSettings.xaml
+
+Open `Framework/InitAllSettings.xaml`. Click at the bottom of the
+**"Initialize All Settings"** Sequence (after the existing settings-loading
+block). Paste from the file (Notepad → Ctrl+A → Ctrl+C → Studio Ctrl+V).
+
+Studio automatically adds these namespace imports on paste:
+
+```diff
++      <x:String>System.ComponentModel</x:String>
++      <x:String>UiPath.Excel</x:String>
++      <x:String>UiPath.Excel.Activities</x:String>
++      <AssemblyReference>System.ComponentModel.EventBasedAsync</AssemblyReference>
++      <AssemblyReference>UiPath.Excel.Activities.Design</AssemblyReference>
+```
+
+All other `±` lines in the diff are `sap:VirtualizedContainerService.HintSize`
+layout noise — no logic change.
+
+---
+
+### Task 6 — Import namespace Cpmf.Config
+
+Open the Imports panel in Studio (or right-click → Import Namespaces).
+Add `Cpmf.Config`. Studio resolves the assembly name from the project name.
+
+```diff
++      <x:String>Cpmf.Config</x:String>
++      <AssemblyReference>ConFormMold_REF_v23.Core</AssemblyReference>
+```
+
+---
+
+### Task 7 — Promote out_ConFigTree to typed OutArgument
+
+Three edits in `Framework/InitAllSettings.xaml`:
+
+**7a.** Add `xmlns:cc` to the root Activity element:
+
+```diff
++xmlns:cc="clr-namespace:Cpmf.Config;assembly=ConFormMold_REF_v23.Core"
+```
+
+**7b.** Declare `out_ConFigTree` as a typed OutArgument in `x:Members`:
+
+```diff
++<x:Property Name="out_ConFigTree" Type="OutArgument(cc:CodedConfig)" />
+```
+
+**7c.** Remove the local variable and change both argument types from
+`x:Object` to `cc:CodedConfig`:
+
+```diff
+-<Variable x:TypeArguments="x:Object" Name="out_ConFigTree" />
+
+-<OutArgument x:TypeArguments="x:Object">[out_ConFigTree]</OutArgument>
++<OutArgument x:TypeArguments="cc:CodedConfig">[out_ConFigTree]</OutArgument>
+
+-<InArgument x:TypeArguments="x:Object">[CodedConfig.Load(dt_Tables)]</InArgument>
++<InArgument x:TypeArguments="cc:CodedConfig">[CodedConfig.Load(dt_Tables)]</InArgument>
+```
+
+---
+
+### Task 8 — Declare typed receiver variable in TestCase
+
+In `Tests/TestCase_InitAllSettings.xaml`, add `xmlns:cc` to the root element:
+
+```diff
++xmlns:cc="clr-namespace:Cpmf.Config;assembly=ConFormMold_REF_v23.Core"
+```
+
+Add `ConFigTree` as a variable at the **parent** TestCase sequence (not inside
+`... When` or `... Then`) so it is in scope for all child sequences:
+
+```xml
+<Variable x:TypeArguments="cc:CodedConfig" Name="ConFigTree" />
+```
+
+---
+
+### Task 9 — Add OutArgument binding to InvokeWorkflowFile
+
+In `Tests/TestCase_InitAllSettings.xaml`, add the following entry inside
+`InvokeWorkflowFile.Arguments` for the `InitAllSettings` invocation:
+
+```xml
+<OutArgument x:TypeArguments="cc:CodedConfig" x:Key="out_ConFigTree">[ConFigTree]</OutArgument>
+```
+
+---
+
+### Task 10 — Add ConFigTree assertions to the Then sequence
+
+Append to the `... Then` sequence in `Tests/TestCase_InitAllSettings.xaml`:
+
+**Object identity checks:**
+
+```xml
+<uta:VerifyExpression DisplayName="ConFigTree: object is not Nothing"
+    Expression="[ConFigTree IsNot Nothing]"
+    OutputMessageFormat="[&quot;actual: &quot; + (ConFigTree IsNot Nothing).ToString()]"
+    ContinueOnFailure="True" />
+<uta:VerifyExpression DisplayName="ConFigTree: type is CodedConfig"
+    Expression="[ConFigTree.GetType().Name = &quot;CodedConfig&quot;]"
+    OutputMessageFormat="[&quot;actual: &quot; + ConFigTree.GetType().Name]"
+    ContinueOnFailure="True" />
+```
+
+**Typed property assertions (new `... Then (ConFigTree typed properties)` sequence):**
+
+| Expression | Expected |
+|---|---|
+| `ConFigTree.Settings.FeatureName = "TypesDemo"` | string match |
+| `ConFigTree.Settings.MaxItems = 42` | int match |
+| `ConFigTree.Settings.IsEnabled = True` | bool match |
+| `ConFigTree.Constants.MaxRetryNumber = 0` | int match |
+| `ConFigTree.Constants.StrictMode = False` | bool match |
+
+All use `ContinueOnFailure="True"`.
 
 ## Key CLI flags
 

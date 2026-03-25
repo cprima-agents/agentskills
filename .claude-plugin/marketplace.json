@@ -14,7 +14,8 @@
       "source": "./",
       "strict": false,
       "skills": [
-        "./skills/uips-log-parser"
+        "./skills/uips-log-parser",
+        "./skills/uips-conform-mold"
       ]
     }
   ]

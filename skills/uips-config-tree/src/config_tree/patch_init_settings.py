@@ -95,6 +95,23 @@ def run(assembly: str, xaml_snippet: Path) -> None:
         # The clipboard fragment uses xmlns:p for the default activity namespace.
         # In the parent document the default namespace covers these — strip the prefix.
         paste = paste.replace("<p:", "<").replace("</p:", "</")
+        # The snippet declares out_ConFigTree as a local x:Object variable, which
+        # would shadow the outer OutArgument(cc:CodedConfig) — remove it so the
+        # Assign writes directly to the workflow argument.
+        paste = re.sub(
+            r'<Variable x:TypeArguments="x:Object" Name="out_ConFigTree" />\s*',
+            "",
+            paste,
+        )
+        # Promote the OutArgument and InArgument types in the snippet to cc:CodedConfig.
+        paste = paste.replace(
+            'x:TypeArguments="x:Object">[out_ConFigTree]',
+            f'x:TypeArguments="cc:CodedConfig">[out_ConFigTree]',
+        )
+        paste = paste.replace(
+            'x:TypeArguments="x:Object">[CodedConfig.Load(dt_Tables)]',
+            f'x:TypeArguments="cc:CodedConfig">[CodedConfig.Load(dt_Tables)]',
+        )
         marker = "\n  </Sequence>\n</Activity>"
         idx = text.rfind(marker)
         if idx == -1:

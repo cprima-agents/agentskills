@@ -39,6 +39,47 @@ ls Data/Config*.xlsx
 If either check fails, stop and tell the user this skill targets REFramework
 template-based projects and cannot proceed without these files.
 
+## Version detection
+
+Read `project.json` and extract the `UiPath.System.Activities` dependency
+version to determine the REFramework template generation and the correct
+`--dotnet-version` flag:
+
+```bash
+python -c "
+import json, re
+data = json.load(open('project.json'))
+sys_act = data.get('dependencies', {}).get('UiPath.System.Activities', '[22')
+major = int(re.search(r'\[(\d+)', sys_act).group(1))
+print('net8' if major >= 25 else 'net6')
+"
+```
+
+| `UiPath.System.Activities` | REF template | `--dotnet-version` |
+|---|---|---|
+| `[25.*]` | v25.0.0 | `net8` |
+| `[22.*]` / `[23.*]` / `[24.*]` | v23.10.0 or v24.10.0 | `net6` (default) |
+
+v23 and v24 share identical dependency versions and cannot be distinguished
+from `project.json` alone — treat both as `net6`.
+
+Pass the detected value to the generator:
+
+```bash
+DOTNET=$(python -c "
+import json, re
+data = json.load(open('project.json'))
+sys_act = data.get('dependencies', {}).get('UiPath.System.Activities', '[22')
+major = int(re.search(r'\[(\d+)', sys_act).group(1))
+print('net8' if major >= 25 else 'net6')
+")
+
+uv run skills/uips-conform-mold/scripts/conform_mold.py Data/Config*.xlsx \
+    --generate-tostring \
+    --dotnet-version "$DOTNET" \
+    --output-xaml LoadTypedConfig.xaml
+```
+
 ## Automated tasks (agent executes)
 
 ### Task 1 — Generate Config.cs

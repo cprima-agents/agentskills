@@ -7,11 +7,13 @@ Reads a UiPath Config.xlsx and generates:
 """
 
 import datetime
+import importlib.resources
 import json
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from string import Template
 
 import openpyxl
 
@@ -415,45 +417,33 @@ def render_cs_drift_report_class() -> str:
 
 
 def render_cs(ir: WorkbookIR) -> str:
-    usings = []
+    using_lines = []
     if ir.needs_system_using:
-        usings.append("using System;")
+        using_lines.append("using System;")
     if ir.generate_loader or ir.generate_pristine:
-        usings.append("using System.Collections.Generic;")
+        using_lines.append("using System.Collections.Generic;")
     if ir.generate_loader:
-        usings.append("using System.Data;")
+        using_lines.append("using System.Data;")
     if ir.generate_pristine:
-        usings.append("using System.Linq;")
+        using_lines.append("using System.Linq;")
     if ir.generate_tojson:
-        usings.append("using System.Text.Json;")
+        using_lines.append("using System.Text.Json;")
 
-    sections = []
-    if usings:
-        sections.extend(usings)
-        sections.append("")
+    usings = "\n".join(using_lines) + "\n\n" if using_lines else ""
 
-    sections.append(f"namespace {ir.namespace}")
-    sections.append("{")
-    sections.append(render_cs_root_class(ir))
-    sections.append("")
-
+    body_parts = [render_cs_root_class(ir)]
     if ir.generate_pristine:
-        sections.append(render_cs_drift_report_class())
-        sections.append("")
-
+        body_parts.append(render_cs_drift_report_class())
     if ir.needs_orchestrator_asset:
-        sections.append(render_cs_orchestrator_asset_class(ir.readonly))
-        sections.append("")
-
+        body_parts.append(render_cs_orchestrator_asset_class(ir.readonly))
     for sheet in ir.sheets:
-        sections.append(render_cs_sheet_class(sheet, ir))
-        sections.append("")
+        body_parts.append(render_cs_sheet_class(sheet, ir))
 
-    if sections and sections[-1] == "":
-        sections.pop()
+    body = "\n\n".join(body_parts) + "\n"
 
-    sections.append("}")
-    return "\n".join(sections) + "\n"
+    res = importlib.resources.files("config_tree.resources")
+    tmpl = Template((res / "CodedConfig.cs.template").read_text(encoding="utf-8"))
+    return tmpl.substitute(usings=usings, namespace=ir.namespace, body=body)
 
 
 # ---------------------------------------------------------------------------
@@ -466,76 +456,9 @@ def render_xaml(ir: WorkbookIR) -> str:
     root = ir.root_class
     load_label = var.removeprefix("out_") if var.startswith("out_") else var
 
-    return (
-        '<?xml version="1.0" encoding="utf-8"?>'
-        '<ClipboardData Version="1.0"'
-        ' xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"'
-        ' xmlns:p="http://schemas.microsoft.com/netfx/2009/xaml/activities"'
-        ' xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"'
-        ' xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"'
-        ' xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
-        ' xmlns:ui="http://schemas.uipath.com/workflow/activities"'
-        ' xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common">'
-        '<ClipboardData.Data>'
-        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
-        f'<p:Sequence x:Name="__ReferenceID0" DisplayName="{var}"'
-        f' sap2010:Annotation.AnnotationText="{var} typed config loader&#xD;&#xA;@see https://rpapub.github.io/ConFormMold/">'
-        '<p:Sequence.Variables>'
-        '<p:Variable x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)" Name="dt_Tables" />'
-        f'<p:Variable x:TypeArguments="x:Object" Name="{var}" />'
-        '</p:Sequence.Variables>'
-        '<p:Assign DisplayName="Initialize dt_Tables">'
-        '<p:Assign.To>'
-        '<p:OutArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[dt_Tables]</p:OutArgument>'
-        '</p:Assign.To>'
-        '<p:Assign.Value>'
-        '<p:InArgument x:TypeArguments="scg:Dictionary(x:String, sd:DataTable)">[New Dictionary(Of String, DataTable)]</p:InArgument>'
-        '</p:Assign.Value>'
-        '</p:Assign>'
-        '<ui:ForEach x:TypeArguments="x:String" CurrentIndex="{x:Null}"'
-        ' DisplayName="For each sheet \u2014 ReadRange into dt_Tables" Values="[in_ConfigSheets]">'
-        '<ui:ForEach.Body>'
-        '<p:ActivityAction x:TypeArguments="x:String">'
-        '<p:ActivityAction.Argument>'
-        '<p:DelegateInArgument x:TypeArguments="x:String" Name="Sheet" />'
-        '</p:ActivityAction.Argument>'
-        '<p:Sequence DisplayName="Read sheet into dt_Tables">'
-        '<p:Sequence.Variables>'
-        '<p:Variable x:TypeArguments="sd:DataTable" Name="dt_CurrentSheet" />'
-        '</p:Sequence.Variables>'
-        '<ui:ReadRange AddHeaders="True" SheetName="[Sheet]" WorkbookPath="[in_ConfigFile]" DataTable="[dt_CurrentSheet]" Range="{x:Null}" />'
-        '<p:Assign DisplayName="Add sheet to dt_Tables">'
-        '<p:Assign.To>'
-        '<p:OutArgument x:TypeArguments="sd:DataTable">[dt_Tables(Sheet)]</p:OutArgument>'
-        '</p:Assign.To>'
-        '<p:Assign.Value>'
-        '<p:InArgument x:TypeArguments="sd:DataTable">[dt_CurrentSheet]</p:InArgument>'
-        '</p:Assign.Value>'
-        '</p:Assign>'
-        '</p:Sequence>'
-        '</p:ActivityAction>'
-        '</ui:ForEach.Body>'
-        '</ui:ForEach>'
-        f'<p:Assign DisplayName="Load {load_label}">'
-        '<p:Assign.To>'
-        f'<p:OutArgument x:TypeArguments="x:Object">[{var}]</p:OutArgument>'
-        '</p:Assign.To>'
-        '<p:Assign.Value>'
-        f'<p:InArgument x:TypeArguments="x:Object">[{root}.Load(dt_Tables)]</p:InArgument>'
-        '</p:Assign.Value>'
-        '</p:Assign>'
-        '</p:Sequence>'
-        '</scg:List>'
-        '</ClipboardData.Data>'
-        '<ClipboardData.Metadata>'
-        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
-        '<scg:List x:TypeArguments="x:Object" Capacity="1">'
-        '<x:Reference>__ReferenceID0</x:Reference>'
-        '</scg:List>'
-        '</scg:List>'
-        '</ClipboardData.Metadata>'
-        '</ClipboardData>\n'
-    )
+    res = importlib.resources.files("config_tree.resources")
+    tmpl = Template((res / "LoadTypedConfig.xaml.template").read_text(encoding="utf-8"))
+    return tmpl.substitute(var=var, root=root, load_label=load_label)
 
 
 # ---------------------------------------------------------------------------

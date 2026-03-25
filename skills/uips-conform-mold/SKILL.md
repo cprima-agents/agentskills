@@ -20,6 +20,25 @@ allowed-tools: Bash
 Automates tasks 1 and 4 of the integration workflow. Tasks 2–10 require
 manual action in UiPath Studio and must be handed off to the user.
 
+## Entry guard
+
+Before proceeding, verify the working directory is a REFramework project.
+Two files must exist:
+
+```bash
+# Both must be present — abort if either is missing
+test -f Framework/InitAllSettings.xaml
+ls Data/Config*.xlsx
+```
+
+| Check | Path | Absence means |
+|---|---|---|
+| REFramework indicator | `Framework/InitAllSettings.xaml` | Not a REFramework project — skill does not apply |
+| Config input | `Data/Config*.xlsx` | Nothing to generate from — ask user for the file location |
+
+If either check fails, stop and tell the user this skill targets REFramework
+template-based projects and cannot proceed without these files.
+
 ## Automated tasks (agent executes)
 
 ### Task 1 — Generate Config.cs

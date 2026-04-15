@@ -50,20 +50,29 @@ If nothing is returned → proceed to Phase 2. If found → skip to Phase 3.
 
 ---
 
-## Phase 2 — Install via CpmfUipsPack (only if absent)
+## Phase 2 — Install via CpmfUipsCLI dispatcher (only if absent)
 
-`CpmfUipsPack` (v0.2.4+) exports `Install-CpmfUipsPackCommandLineTool`.
-PowerShell 7+ required.
+`CpmfUipsCLI` is the stable entry point. It pulls in `CpmfUipsPack` as a
+dependency. PowerShell 7+ required. Install is idempotent.
 
 ```powershell
-# Install the module (idempotent)
-Install-PSResource -Name CpmfUipsPack -TrustRepository
+# Install the dispatcher module (brings CpmfUipsPack along)
+Install-PSResource -Name CpmfUipsCLI -TrustRepository
 
-# Check exact parameter syntax before calling install
-Get-Help Install-CpmfUipsPackCommandLineTool -Full
+# Install net6 uipcli (known-good version)
+Invoke-CpmfUipsCLI install-tool -CliVersionNet6 '23.10.2.6'
+
+# Install net8 uipcli (known-good version)
+Invoke-CpmfUipsCLI install-tool -CliVersionNet8 '25.10.11'
 ```
 
-> Do not guess parameter names — always read the help output first.
+> **Never install uipcli directly as a Windows dotnet tool** (e.g.
+> `dotnet tool install UiPath.CLI.Windows --global` or
+> `dotnet tool install UiPath.CLI.Windows --tool-path ...` called manually).
+> The dispatcher manages its own isolated tool directories under
+> `%LOCALAPPDATA%\cpmf\tools\` with pinned versions and a bundled .NET
+> runtime. Installing outside this path breaks version isolation and the
+> runtime bootstrap that `CpmfUipsCLI` relies on.
 
 ### Fallback — corporate / restricted environment
 
@@ -270,3 +279,4 @@ Run a specific entry point:
 | `--analyzerTraceLevel Warning` required | Rules with `IsEnabledByDefault = false` are silently skipped without this flag |
 | Project-level violations | `FilePath` is the workspace directory, not a `.xaml` file — do not expect a filename |
 | UiRobot ≠ uipcli | uipcli has no local execute command; use `UiRobot.exe execute` for running processes locally |
+| Never install uipcli directly | Do not call `dotnet tool install UiPath.CLI.Windows` manually — always go through `Invoke-CpmfUipsCLI install-tool` |

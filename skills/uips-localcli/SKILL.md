@@ -29,6 +29,21 @@ target with the user before proceeding.
 
 ---
 
+## WSL note (applies to Phase 1 and Phase 2)
+
+When running from within WSL:
+
+| Command | What it is | Use for |
+|---|---|---|
+| `pwsh` | Linux PowerShell — no Windows modules, `$env:LOCALAPPDATA` is null | **Never** for CpmfUipsCLI work |
+| `pwsh.exe` | Windows PowerShell 7 host | All PS commands targeting Windows tools |
+
+- Always use `pwsh.exe`, never `pwsh`, when invoking `Invoke-CpmfUipsCLI` or locating uipcli.
+- Do **not** use bash redirection syntax (`2>/dev/null`) inside `pwsh.exe -Command "..."` — use `-ErrorAction SilentlyContinue` instead.
+- Windows paths returned by `pwsh.exe` (`C:\Users\...`) must be translated to WSL paths (`/mnt/c/Users/...`) before use in bash commands.
+
+---
+
 ## Phase 1 — Locate uipcli
 
 The two builds are installed to different sub-paths:
@@ -38,13 +53,17 @@ The two builds are installed to different sub-paths:
 | net6 (23.x) | `~/.cpmf/tools/uipcli-23.*/extracted/tools/uipcli.exe` |
 | net8 (25.x) | `~/.cpmf/tools/uipcli-25.*/uipcli.exe` |
 
+**Native Windows / Git Bash:**
 ```bash
-# Check net6
 ls ~/.cpmf/tools/uipcli-23.*/extracted/tools/uipcli.exe 2>/dev/null | sort -V | tail -1
-
-# Check net8
 ls ~/.cpmf/tools/uipcli-25.*/uipcli.exe 2>/dev/null | sort -V | tail -1
 ```
+
+**From WSL** — use `pwsh.exe` with Windows env vars, then translate the result:
+```bash
+pwsh.exe -Command "Get-ChildItem (Join-Path \$env:LOCALAPPDATA 'cpmf/tools') -Recurse -Filter 'uipcli.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName"
+```
+Translate each result for use in bash: `C:\Users\cpm\...` → `/mnt/c/Users/cpm/...`
 
 If nothing is returned → proceed to Phase 2. If found → skip to Phase 3.
 
@@ -55,15 +74,18 @@ If nothing is returned → proceed to Phase 2. If found → skip to Phase 3.
 `CpmfUipsCLI` is the stable entry point. It pulls in `CpmfUipsPack` as a
 dependency. PowerShell 7+ required. Install is idempotent.
 
+**Native Windows / Git Bash (pwsh.exe or PowerShell session):**
 ```powershell
-# Install the dispatcher module (brings CpmfUipsPack along)
 Install-PSResource -Name CpmfUipsCLI -TrustRepository
-
-# Install net6 uipcli (known-good version)
 Invoke-CpmfUipsCLI install-tool -CliVersionNet6 '23.10.2.6'
-
-# Install net8 uipcli (known-good version)
 Invoke-CpmfUipsCLI install-tool -CliVersionNet8 '25.10.11'
+```
+
+**From WSL** — prefix every PS command with `pwsh.exe -Command`:
+```bash
+pwsh.exe -Command "Install-PSResource -Name CpmfUipsCLI -TrustRepository"
+pwsh.exe -Command "Invoke-CpmfUipsCLI install-tool -CliVersionNet6 '23.10.2.6'"
+pwsh.exe -Command "Invoke-CpmfUipsCLI install-tool -CliVersionNet8 '25.10.11'"
 ```
 
 > **Never install uipcli directly as a Windows dotnet tool** (e.g.

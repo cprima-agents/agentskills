@@ -10,3 +10,4 @@ dist/
 build/
 uv.lock
 .env
+patches/*.patch

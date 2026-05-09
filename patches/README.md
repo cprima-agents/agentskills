@@ -14,7 +14,12 @@ Generate it once after the initial sync, then keep it as long as it applies clea
    in the justfile for the expected variable names). Store them in a local `.env`
    file or your shell profile — both are gitignored.
 
-2. Run the sync recipe to pull upstream content into the skill folder:
+2. Register the upstream remote (one-time per machine):
+   ```
+   just setup-upstream-remote
+   ```
+
+3. Run the sync recipe to pull upstream content into the skill folder:
    ```
    just sync-<skillname>
    ```

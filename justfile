@@ -37,16 +37,29 @@ test:
     uv run pytest
 
 # ── skill sync ────────────────────────────────────────────────────────────────
-# Each sync-* recipe reads one AGENTSKILLS_SYNC_<SKILLNAME> env var pointing to
-# the upstream source folder. Set these in a local .env file (gitignored) or
-# your shell profile before running.
+# Skills are synced from an upstream git repo via a local remote (stored in
+# .git/config, never committed). Required env vars — set in .env or shell profile:
+#   AGENTSKILLS_SYNC_SOURCE           upstream repo root (for setup-upstream-remote)
+#   AGENTSKILLS_SYNC_UIP_METHODOLOGY  subpath of the skill within the upstream repo
+#   AGENTSKILLS_SYNC_FOLDER_HARVEST   subpath of the skill within the upstream repo
+# Note: subpaths must be exactly 2 path components deep (strip-components=2).
+
+# One-time: register the upstream remote in .git/config
+setup-upstream-remote:
+    git remote add skills-upstream $env:AGENTSKILLS_SYNC_SOURCE
 
 sync-uip-methodology:
-    robocopy $env:AGENTSKILLS_SYNC_UIP_METHODOLOGY skills\uip-methodology /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }
+    git fetch skills-upstream
+    git archive FETCH_HEAD $env:AGENTSKILLS_SYNC_UIP_METHODOLOGY -o tmp\uip-methodology-upstream.tar
+    tar --strip-components=2 -C skills/uip-methodology -xf tmp\uip-methodology-upstream.tar
+    Remove-Item tmp\uip-methodology-upstream.tar
     git apply patches/uip-methodology-SKILL.md.patch
 
 sync-folder-harvest:
-    robocopy $env:AGENTSKILLS_SYNC_FOLDER_HARVEST skills\folder-harvest /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }
+    git fetch skills-upstream
+    git archive FETCH_HEAD $env:AGENTSKILLS_SYNC_FOLDER_HARVEST -o tmp\folder-harvest-upstream.tar
+    tar --strip-components=2 -C skills/folder-harvest -xf tmp\folder-harvest-upstream.tar
+    Remove-Item tmp\folder-harvest-upstream.tar
 
 # ── folder-harvest ─────────────────────────────────────────────────────────────
 

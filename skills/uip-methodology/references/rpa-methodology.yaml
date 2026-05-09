@@ -1,0 +1,2922 @@
+# RPA Methodology — artefacts, topics, and data model
+#
+# Topic axes:
+#   semantics.kind              = intent | concept | artefact | role | constraint | decision | metric | procedure | gate
+#   purpose.statement           = intent expressed in rendered documents
+#   purpose.review              = LLM review rubric with quality tiers (optional)
+#   acquisition.modes           = list of acquisition modes (e.g. interview)
+#   acquisition.interview.question = elicitation prompt for interview mode
+#   concept.model               = data model fields (used by generator and parser)
+#   concept.uses                = cross-topic field dependencies (informational)
+#   transforms.to_markdown      = Python script that renders topic regions to markdown
+#   transforms.from_markdown    = Python script that parses markdown regions back to data
+#   artefacts.<id>              = per-artefact presence; owns/required/role/section
+#   artefacts.<id>.template     = Jinja2 snippet file(s) rendering this topic's region
+#   role.R/A/C/I                = RACI; R is required (stakeholder who owns the content)
+#   enums.<name>                = id+label pairs; inline enum: lists reference these ids
+#
+# Absent artefact key           = topic is not present in that artefact
+
+meta:
+  id_strategy: stable_hash    # sha256(prefix + canonical_parts)[:6]
+  id_version: 1               # increment if hash inputs or prefix mapping changes
+
+artefacts:
+- id: pdd
+  label: PDD
+  file_glob: '*pdd*.md'
+  client_facing: true
+  lifecycle: true
+- id: sdd
+  label: SDD
+  file_glob: '*sdd*.md'
+  client_facing: true
+  lifecycle: true
+- id: arch-review
+  label: Architecture Chapter
+  file_glob: '*arch*.md'
+  # sections: ordered derivable regions — section numbers live in the topic artefact entry.
+  # Owned regions (owns:true in topic) are SA-authored scaffold; they do not appear here.
+  sections:
+  - region: solution_overview
+    topic: Process name / ownership
+    source: pdd
+  - region: business_objectives
+    topic: Business objectives
+    source: pdd
+  - region: system_context
+    topic: System context
+    source: sdd
+  - region: containers
+    topic: Container architecture
+    source: sdd
+  - region: adr_inventory
+    topic: Architecture decision records
+    source: sdd
+  - region: estimation_summary
+    topic: Build effort breakdown
+    source: estimation
+  - region: roi_summary
+    topic: ROI and payback
+    source: roi
+- id: estimation
+  label: Estimation
+  file_glob: '*estimation*.md'
+  client_facing: true
+  lifecycle: true
+- id: roi
+  label: ROI Calculation
+  file_glob: '*roi*.md'
+- id: tdd
+  label: TDD
+  file_glob: '*tdd*.md'
+- id: adr
+  label: ADR
+  file_glob: docs/adr/adr-*.md
+  lifecycle: true
+  collection: true
+- id: glossary
+  label: Glossary
+  file_glob: '*glossary*.md'
+- id: project_plan
+  label: Project Plan
+  file_glob: '*project-plan*.md'
+topics:
+- topic: Process name / ownership
+  semantics:
+    kind: concept
+  purpose:
+    statement: Establish the official identity of the process and its accountability chain before any design work 
+      begins.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What is the official name of this process, and who owns it — process owner, department, and responsible 
+        architect?
+  concept:
+    model:
+      process_name:
+        type: string
+      process_owner:
+        type: string
+      department:
+        type: string
+      responsible_architect:
+        type: string
+      solution_overview:
+        type: string
+        required: false
+        description: One sentence — what the automation does, which systems it connects, key business outcome. 
+          SA-written for arch_review.
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template: snippets/process_overview.md
+      validated_by:
+    sdd:
+      role: reference
+    arch-review:
+      role: identity header
+      section: '1'
+      template: snippets/process_overview.md
+  role:
+    R: process-owner
+    A: sa
+  validated_by:
+- topic: Business objectives
+  semantics:
+    kind: intent
+  purpose:
+    statement: Capture the measurable business outcomes expected from automation so the project team can assess delivery
+      success.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What business outcomes do you expect after automation — time saved, error reduction, cost savings, SLA 
+        improvement, compliance, or other goals? List them as bullet points.
+  concept:
+    model:
+      objectives:
+        type: list
+        item:
+          type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      section: '1.1'
+      template: snippets/objectives.md
+      validated_by:
+    sdd:
+      role: reference
+      section: '1.1'
+      template: snippets/objectives.md
+    arch-review:
+      role: success criteria
+      section: '2.4'
+      required: true
+      template: snippets/objectives.md
+  role:
+    R: process-owner
+    A: sa
+    C:
+    - pm
+  validated_by:
+- topic: Prerequisites for automation
+  semantics:
+    kind: gate
+  purpose:
+    statement: List the conditions that must be met before the build can start, so blockers are visible and owned from 
+      the first day of the project.
+  acquisition:
+    modes:
+    - interview
+    - default
+    interview:
+      question: Are there any project-specific prerequisites beyond the standard checklist — e.g. custom compliance 
+        approvals, additional access gates, or third-party sign-offs? If so, list them.
+    default:
+      static:
+      - criterion: Completed and signed-off PDD
+        status: open
+      - criterion: Works Council (Betriebsrat) Mitbestimmung approval obtained
+        status: open
+      - criterion: Data Protection Officer (Datenschutzbeauftragter) approval obtained — DPIA completed if personal data
+          is processed
+        status: open
+      - criterion: Test data set covering all exception scenarios
+        status: open
+      - criterion: Credentials stored in Orchestrator Assets (no hardcoding)
+        status: open
+      - criterion: Dependencies with other projects documented
+        status: open
+      derived:
+      - source: applications
+        filter:
+          in_scope: true
+          category: application
+        template: Robot user account has dev/test access to {name}
+        status: open
+  concept:
+    model:
+      prerequisites:
+        type: list
+        item:
+          criterion:
+            type: string
+          status:
+            type: string
+            enum: gate_status
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      section: '1.3'
+      template: snippets/prerequisites.md
+      validated_by:
+  role:
+    R: pm
+    A: sa
+    C:
+    - process-owner
+  validated_by:
+- topic: Contact persons
+  semantics:
+    kind: role
+  purpose:
+    statement: Record all key contacts so every team member knows who to reach for business decisions, approvals, system
+      access, and compliance.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: 'Who are the key contacts? For the PDD: process owner, business sponsor, BA, PM, Works Council rep, and DPO.
+        For the SDD: per-system technical contacts — who to call for firewall rules, account provisioning, and system access
+        requests.'
+  concept:
+    model:
+      contacts_business:
+        type: list
+        item:
+          name:
+            type: string
+          role:
+            type: string
+            enum:
+            - process-owner
+            - sponsor
+            - ba
+            - pm
+            - works-council
+            - dpo
+            - other
+          email:
+            type: string
+          org_unit:
+            type: string
+            required: false
+          notes:
+            type: string
+            required: false
+      contacts_technical:
+        type: list
+        item:
+          name:
+            type: string
+          role:
+            type: string
+          system:
+            type: string
+          email:
+            type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      role: business + delivery contacts
+      required: true
+      template: snippets/contacts_business.md
+      validated_by:
+    sdd:
+      owns: true
+      role: technical system contacts
+      required: true
+      template: snippets/contacts_technical.md
+      validated_by:
+  role:
+    R: ba
+    A: pm
+  validated_by:
+- topic: AS-IS process steps
+  semantics:
+    kind: procedure
+  purpose:
+    statement: Map every manual step — including branches, exceptions, and system touch-points — so the automation scope
+      is unambiguous and nothing is missed.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Walk me through every manual step in the current process from trigger to completion — systems touched, 
+        actions taken, and who performs each step.
+  concept:
+    model:
+      process_steps:
+        type: list
+        item:
+          id:
+            type: string
+            required: false
+            description: Stable trace ID — auto-assigned by parser (act_xxxxxx). Manual override allowed.
+          step:
+            type: string
+          input:
+            type: string
+          description:
+            type: string
+          next_step:
+            type: string
+            required: false
+          on_exception:
+            type: string
+            required: false
+          pipeline_stage:
+            type: string
+            required: false
+            enum:
+            - init
+            - ingest
+            - enrich
+            - decide
+            - execute
+            - complete
+            - finalize
+          business_rule:
+            type: string
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template: snippets/process_steps.md
+      validated_by:
+  role:
+    R: ba
+    A: process-owner
+    C:
+    - sa
+  validated_by:
+- topic: TO-BE process map
+  semantics:
+    kind: intent
+  purpose:
+    statement: Define which steps the robot will own and which remain manual, creating the agreed boundary the build 
+      team designs to.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which steps will the robot perform, and which remain manual? Describe the automated flow end to end.
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+  role:
+    R: ba
+    A: sa
+    C:
+    - process-owner
+  validated_by:
+- topic: Volume / peak / frequency
+  semantics:
+    kind: metric
+  purpose:
+    statement: Quantify throughput, peak load, and timing so the architecture is sized correctly and SLAs can be set.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: How many items arrive daily, monthly, and at peak? Are there known quiet periods, seasonal patterns, or 
+        processing windows?
+  concept:
+    model:
+      schedule:
+        type: string
+      daily_volume:
+        type: integer
+      monthly_volume:
+        type: integer
+      aht_min:    # average handling time per item (minutes)
+        type: number
+      peak_period:
+        type: string
+      peak_volume:
+        type: integer
+      quiet_periods:
+        type: string
+        required: false
+      expected_volume_growth:
+        type: string
+        required: false
+      items_per_runtime_per_day:
+        type: number
+        required: false
+        derived: processing_window_min / aht_min
+        description: Throughput capacity of one runtime within the processing window
+      business_problem:
+        type: string
+        required: false
+        description: SA-authored narrative for arch_review section 2.1 — current manual effort, pain points, volume 
+          context.
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template: snippets/volume.md
+      validated_by:
+    estimation:
+      role: informs hours
+      required: true
+    sdd:
+      role: reference
+      required: true
+    project_plan:
+      role: informs timeline
+    arch-review:
+      role: informs feasibility
+  role:
+    R: process-owner
+    A: ba
+    C:
+    - sa
+  validated_by:
+- topic: AS-IS applications
+  semantics:
+    kind: concept
+  purpose:
+    statement: Catalogue every application and platform component the robot must interact with to drive access planning 
+      and selector strategy.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: 'List every application the current manual process touches — name, version, automation surface (ui / api /
+        database / file / email / queue), and access method. For each business application, state whether it has been automated
+        before in any project. Also list all UiPath platform components in use (Robot, Orchestrator, etc.) with category:
+        platform.'
+  concept:
+    model:
+      applications:
+        type: list
+        item:
+          name:
+            type: string
+          category:
+            type: string
+            enum:
+            - application
+            - platform
+          version:
+            type: string
+            required: false
+          automation_surface:
+            type: string
+            enum:
+            - ui
+            - api
+            - database
+            - file
+            - email
+            - queue
+            - platform
+          access_method:
+            type: string
+          in_scope:
+            type: boolean
+          previously_automated:    # N/A for category: platform
+            type: boolean
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template: snippets/applications.md
+      validated_by:
+    estimation:
+      role: informs rates
+    sdd:
+      role: reference
+      section: '5'
+    arch-review:
+      role: technology matrix
+      required: true
+  role:
+    R: ba
+    A: sa
+    C:
+    - developer
+  validated_by:
+- topic: System access prerequisites
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Identify every access gate — approvals, accounts, firewall rules — that must be cleared before the robot 
+      can run, so blockers surface early.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: For each system the robot connects to, what must be arranged before the robot can run — system owner 
+        approval, account provisioning, firewall rules, static IP whitelisting, and any other access gating steps? Who 
+        owns each action and by when?
+  concept:
+    model:
+      system_prerequisites:
+        type: list
+        item:
+          system:
+            type: string
+          prerequisite:
+            type: string
+          detail:
+            type: string
+          owner:
+            type: string
+          status:
+            type: string
+            enum:
+            - Open
+            - In Progress
+            - Done
+          gate:
+            type: string
+            enum:
+            - Pre-Dev
+            - Pre-UAT
+            - Pre-Go-Live
+            required: false
+      robot_account:
+        type: string
+        required: false
+        description: Dedicated automation identity (Entra ID / AD service account)
+      privilege_level:
+        type: string
+        required: false
+        description: Local admin / standard user / domain user
+      mfa_session_policy:
+        type: string
+        required: false
+      access_control:
+        type: list
+        description: Robot account access control summary; computed from technology_overview infrastructure + robot-type
+          components and system_prerequisites robot-account rows
+        derived: infer(technology_overview[infrastructure,automation]) + filter(system_prerequisites where system='Robot
+          Account')
+        item:
+          item_label:
+            type: string
+            description: e.g. Robot account, Privilege level, MFA / session policy
+          value:
+            type: string
+    uses:
+    - technology_overview
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      required: true
+      template: snippets/system_prerequisites.md
+      validated_by:
+  role:
+    R: sa
+    A: pm
+    C:
+    - developer
+  validated_by:
+- topic: TO-BE platform (RPA infrastructure)
+  semantics:
+    kind: concept
+  purpose:
+    statement: Capture the selected UiPath platform configuration required for Works Council review and infrastructure 
+      provisioning. Rationale and alternatives belong in ADRs.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which UiPath runtime components are required — robot type (unattended/attended), Orchestrator type 
+        (Cloud/Suite), execution mode (XAML/Coded/Hybrid), and scalability requirements? State selected values only; 
+        document the why in docs/adr/.
+  concept:
+    model:
+      technology_overview:
+        type: list
+        description: UiPath platform layers and components in use — one row per component from uipath_platform_layers 
+          enum
+        item:
+          layer:
+            type: string
+          component:
+            type: string
+          used:
+            type: string
+            description: "'\\u2713' = in use, '—' = not used"
+      uipath_version:
+        type: string
+      execution_mode:
+        type: string
+        enum:
+        - XAML
+        - Coded C#
+        - Hybrid
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    pdd:
+      owns: true
+      role: high-level for Mitbestimmung
+      required: true
+    sdd:
+      owns: true
+      role: full technical spec — tenant, account, queue, VM
+      section: '2.2'
+      required: true
+      template:
+      - snippets/technology_overview.md
+      - snippets/technology_config.md
+      validated_by:
+    arch-review:
+      owns: true
+      role: platform configuration — selected values
+      section: '3'
+      required: true
+      template: snippets/technology_overview.md
+  role:
+    R: sa
+    A: sponsor
+  validated_by:
+- topic: In scope / out of scope
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Draw an explicit boundary around what this release automates so all parties share the same expectation 
+      and change requests are traceable.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which process steps are in scope for this automation release, and which are explicitly excluded? State 
+        the boundary clearly.
+  concept:
+    model:
+      in_scope:
+        type: list
+        item:
+          step:
+            type: string
+          description:
+            type: string
+      out_of_scope:
+        type: list
+        item:
+          activity:
+            type: string
+          reason:
+            type: string
+          impact_on_to_be:
+            type: string
+            required: false
+          future_automation_path:
+            type: string
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      section: '3.3'
+      template:
+      - snippets/in_scope.md
+      - snippets/out_of_scope.md
+      validated_by:
+    sdd:
+      role: reference
+      template:
+      - snippets/in_scope.md
+      - snippets/out_of_scope.md
+    arch-review:
+      owns: true
+      role: scope boundary decision
+      section: '2.3'
+      required: true
+      template:
+      - snippets/in_scope.md
+      - snippets/out_of_scope.md
+  role:
+    R: sa
+    A: process-owner
+    C:
+    - sponsor
+  validated_by:
+- topic: Constraints and assumptions
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Document technical constraints and design assumptions that bound the solution so developers know what 
+      they cannot change and what they are taking for granted.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What technical constraints apply — network, access, performance? What design assumptions are you making 
+        about data quality, volume stability, or downstream systems?
+  concept:
+    model:
+      constraints:
+        type: list
+        item:
+          type:
+            type: string
+            enum:
+            - Constraint
+            - Assumption
+            - Decision
+          statement:
+            type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      required: true
+      section: '1.3'
+      template: snippets/constraints.md
+  role:
+    R: sa
+    A: pm
+- topic: Parallel initiatives
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Identify concurrent projects that share steps, systems, or data with this automation so impacts can be 
+      tracked and scope conflicts avoided.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Are there any other projects, system upgrades, or process changes running in parallel that share steps, 
+        applications, or data with this automation?
+  concept:
+    model:
+      parallel_initiatives:
+        type: list
+        item:
+          initiative:
+            type: string
+          affected_steps:
+            type: string
+          impact_on_automation:
+            type: string
+          expected_completion:
+            type: string
+          contact:
+            type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      section: '3.2'
+      template: snippets/parallel_initiatives.md
+      validated_by:
+    sdd:
+      role: reference
+  role:
+    R: pm
+    A: sa
+    C:
+    - ba
+  validated_by:
+- topic: Business exceptions
+  semantics:
+    kind: concept
+  purpose:
+    statement: Enumerate the data conditions that make a transaction unprocessable so the robot handles them gracefully 
+      rather than crashing or silently skipping.
+  acquisition:
+    modes:
+    - interview
+    - default
+    interview:
+      question: What data conditions make a transaction invalid or unprocessable — and what should the robot do in each 
+        case?
+    default:
+      static:
+      - Send email to `[TBD — exceptions@company.com]` with screenshot attached
+      - Log the transaction as "Business Exception" in Orchestrator
+      - Move to the next transaction
+  concept:
+    model:
+      business_exceptions:
+        type: list
+        item:
+          name:
+            type: string
+          step:
+            type: string
+          trigger:
+            type: string
+          robot_action:
+            type: string
+      default_be_handling:
+        type: list
+        item:
+          type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template:
+      - snippets/business_exceptions.md
+      - snippets/default_be_handling.md
+      validated_by:
+    estimation:
+      role: contingency
+    sdd:
+      role: reference
+      section: '6'
+      required: true
+    arch-review:
+      role: flags gaps
+  role:
+    R: process-owner
+    A: ba
+    C:
+    - sa
+  validated_by:
+- topic: System exceptions
+  semantics:
+    kind: concept
+  purpose:
+    statement: Capture known application failures and define the robot's recovery behaviour so production incidents stay
+      within expected bounds.
+  acquisition:
+    modes:
+    - interview
+    - default
+    interview:
+      question: What application errors, login failures, timeouts, or infrastructure faults has this process 
+        experienced? How should the robot respond to each?
+    default:
+      static:
+      - 'Retry the current step up to `[DEFAULT: 3]` times'
+      - 'If unresolved: log the error, send alert to `[TBD — ops@company.com]`, terminate cleanly'
+  concept:
+    model:
+      application_errors:
+        type: list
+        item:
+          name:
+            type: string
+          step:
+            type: string
+          trigger:
+            type: string
+          robot_action:
+            type: string
+      exception_handling:
+        type: list
+        item:
+          exception_type:
+            type: string
+          trigger:
+            type: string
+          robot_action:
+            type: string
+          max_retries:
+            type: integer
+          escalation:
+            type: string
+      default_se_handling:
+        type: list
+        item:
+          type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    pdd:
+      role: preliminary known errors
+      template:
+      - snippets/application_errors.md
+      - snippets/default_se_handling.md
+      validated_by:
+    sdd:
+      owns: true
+      section: '6'
+      required: true
+      template:
+      - snippets/application_errors.md
+      - snippets/default_se_handling.md
+      - snippets/exception_handling.md
+      validated_by:
+  role:
+    R: sa
+    C:
+    - developer
+  validated_by:
+- topic: Reporting requirements
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Define the monitoring and reporting outputs the business and operations teams need to trust and maintain 
+      the robot in production.
+  acquisition:
+    modes:
+    - interview
+    - default
+    interview:
+      question: What does the business need to monitor — frequency, granularity, and tooling? What does the ops team 
+        need to track the robot in production?
+    default:
+      static:
+      - false: 1
+        report_type: Process logs
+        frequency: Daily
+        details: Run count, average duration
+        tool: Orchestrator / Kibana
+      - false: 2
+        report_type: Transaction logs
+        frequency: Daily
+        details: Transaction count, success/fail ratio
+        tool: Orchestrator
+      - false: 3
+        report_type: Error logs
+        frequency: Daily
+        details: Error count by type
+        tool: Orchestrator / Kibana
+  concept:
+    model:
+      reporting_requirements:
+        type: list
+        item:
+          number:
+            type: integer
+          report_type:
+            type: string
+          frequency:
+            type: string
+          details:
+            type: string
+          tool:
+            type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: true
+      template: snippets/reporting_requirements.md
+      validated_by:
+    sdd:
+      parse_from: pdd
+      role: monitoring design
+      required: true
+      template: snippets/reporting_requirements.md
+  role:
+    R: process-owner
+    A: ba
+    C:
+    - ops
+  validated_by:
+- topic: Risks and assumptions
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Surface technical and organisational risks with mitigations so the project team can act before they 
+      become blockers.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What could prevent this automation from working as designed — technical, organisational, or data risks? 
+        What mitigations are planned?
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: arch_review
+  artefacts:
+    pdd:
+      role: business risks
+    estimation:
+      role: contingency %
+    sdd:
+      role: reference
+      section: '7'
+    project_plan:
+      role: risk log
+      template: snippets/risks_and_assumptions.md
+    arch-review:
+      owns: true
+      role: technical + mitigation
+      section: '5'
+      required: true
+  role:
+    R: sa
+    A: pm
+    C:
+    - ba
+  validated_by:
+  concept:
+    model:
+      risks_and_assumptions:
+        type: list
+        item:
+          id:
+            type: string
+            required: false
+          type:
+            type: string
+          description:
+            type: string
+          impact:
+            type: string
+            required: false
+          mitigation:
+            type: string
+            required: false
+          owner:
+            type: string
+            required: false
+          status:
+            type: string
+            required: false
+- topic: Build effort breakdown
+  semantics:
+    kind: metric
+  purpose:
+    statement: Estimate build effort per component so the project can be costed, staffed, and tracked against a 
+      baseline.
+  acquisition:
+    modes:
+    - estimate
+    - interview
+    estimate:
+      instruction: 'SA assigns effort per component from SDD section 3.4. For each: catalog flag, base_effort_pds, multipliers
+        (kind + value), confidence, contingency override, and role split. Global pd_rate and contingency_pct set once at the
+        top.
+
+        '
+    interview:
+      question: For each component in the inventory, estimate the effort in person-days — accounting for archetype type,
+        catalog availability, exception count, and surface complexity.
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: estimation
+  concept:
+    uses:
+    - components
+    model:
+      pd_rate:
+        type: number
+        required: true
+        description: Cost per person-day (project currency)
+      contingency_pct:
+        type: number
+        required: true
+        description: Global contingency applied to total base effort
+      effort_items:
+        type: list
+        required: true
+        item:
+          id:
+            type: string
+            required: false
+            description: Stable trace ID — auto-assigned by parser (est_xxxxxx). Manual override allowed.
+          component_id:
+            type: string
+          catalog:
+            type: boolean
+            description: true = standard REFramework catalog effort (‡); false = bespoke (†)
+          complexity:
+            type: string
+            enum:
+            - low
+            - medium
+            - high
+            - critical
+            description: Structural complexity — independent of multiplier math; used for reporting, governance, and 
+              historical calibration
+          base_effort_pds:
+            type: number
+          multipliers:
+            type: list
+            item:
+              kind:
+                type: string
+                enum:
+                - complexity
+                - reuse
+                - observability
+                - selector_stability
+                - integration
+              value:
+                type: number
+          derived_effort_pds:
+            type: number
+            derived: base_effort_pds * product(multipliers[*].value)
+          confidence:
+            type: string
+            enum:
+            - high
+            - medium
+            - low
+            - very_low
+          contingency_pct:
+            type: number
+            description: Per-component override; falls back to global contingency_pct when absent
+          roles:
+            type: list
+            description: Approximate role allocation; sum(effort_pds) should equal derived_effort_pds
+            item:
+              role:
+                type: string
+                enum:
+                - sa
+                - developer
+                - ba
+                - pm
+                - ops
+              effort_pds:
+                type: number
+      total_base_pds:
+        type: number
+        derived: sum(effort_items[*].derived_effort_pds)
+      total_effort_pds:
+        type: number
+        derived: total_base_pds * (1 + contingency_pct / 100)
+      build_cost:
+        type: number
+        derived: total_effort_pds * pd_rate
+  artefacts:
+    estimation:
+      owns: true
+      section: '1'
+      required: true
+      template:
+      - snippets/effort_items.md
+      - snippets/estimation_summary.md
+    sdd:
+      role: reference
+      section: '9'
+      template: snippets/estimation_summary.md
+    project_plan:
+      role: milestone basis
+    arch-review:
+      role: cost envelope only
+      section: '6.1'
+      template: snippets/estimation_summary.md
+  role:
+    R: sa
+    A: pm
+  validated_by:
+- topic: Run costs
+  semantics:
+    kind: metric
+  purpose:
+    statement: Quantify ongoing infrastructure, licensing, and support costs so the ROI calculation has an accurate cost
+      baseline.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What are the ongoing monthly costs — infrastructure, licensing, and support tiers L1/L2/L3?
+  concept:
+    model:
+      cost_items:
+        type: list
+        required: true
+        item:
+          category:
+            type: string
+            enum:
+            - infrastructure
+            - licensing
+            - support_l1
+            - support_l2
+            - support_l3
+            - other
+          description:
+            type: string
+          monthly_cost:
+            type: number
+      monthly_run_cost:
+        type: number
+        derived: sum(cost_items[*].monthly_cost)
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: estimation
+  artefacts:
+    estimation:
+      owns: true
+      section: '2'
+      required: true
+      template: snippets/cost_items.md
+    roi:
+      role: reference
+      section: '3'
+    arch-review:
+      role: board summary
+  role:
+    R: sa
+    A: pm
+    C:
+    - sponsor
+  validated_by:
+- topic: ROI and payback
+  semantics:
+    kind: metric
+  purpose:
+    statement: Translate volume, AHT savings, and run costs into a financial case that justifies the investment to 
+      sponsors and leadership.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What is the FTE cost rate basis, monthly labour saving, net saving, payback period, and year-1/year-3 
+        net benefit?
+  concept:
+    uses:
+    - monthly_volume
+    - monthly_run_cost
+    - build_cost
+    model:
+      fte_cost_rate:    # €/hour
+        type: number
+        required: true
+      aht_saved_min:   # minutes saved per item
+        type: number
+        required: true
+      fte_hours_saved_month:
+        type: number
+        derived: monthly_volume * aht_saved_min / 60
+      monthly_labour_saving:
+        type: number
+        derived: fte_hours_saved_month * fte_cost_rate
+      monthly_net_saving:
+        type: number
+        derived: monthly_labour_saving - monthly_run_cost
+      annual_net_saving:
+        type: number
+        derived: monthly_net_saving * 12
+      payback_months:
+        type: number
+        derived: build_cost / monthly_net_saving
+      year_1_net_benefit:
+        type: number
+        derived: annual_net_saving - build_cost
+      year_3_net_benefit:
+        type: number
+        derived: (annual_net_saving * 3) - build_cost
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: roi
+  artefacts:
+    roi:
+      owns: true
+      required: true
+      template:
+      - snippets/roi_inputs.md
+      - snippets/roi_summary.md
+    estimation:
+      role: summary
+      section: '3'
+    sdd:
+      role: board summary
+      section: '9'
+      template: snippets/roi_summary.md
+    arch-review:
+      role: board-facing aggregate
+      section: '7'
+      template: snippets/roi_summary.md
+  role:
+    R: sa
+    A: pm
+    C:
+    - sponsor
+  validated_by:
+- topic: System context
+  semantics:
+    kind: artefact
+  purpose:
+    statement: The automation in its environment — external actors, connected systems, and the automation boundary. No 
+      internal structure. C4 Level 1.
+  acquisition:
+    modes:
+    - design
+    - interview
+    design:
+      instruction: SA constructs from the application inventory and scope decisions. Identify every external actor and 
+        system the automation interacts with, the data direction, and whether each is in scope.
+    interview:
+      question: What external systems does the robot connect to, what data flows in/out, and what actors (humans, 
+        upstream processes) interact with the automation?
+  concept:
+    model:
+      system_context:
+        type: list
+        item:
+          name:
+            type: string
+          role:
+            type: string
+          direction:
+            type: string
+          in_scope:
+            type: boolean
+          notes:
+            type: string
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '3.1'
+      required: true
+      template: snippets/system_context.md
+      validated_by:
+    arch-review:
+      role: high-level
+      section: '4.1'
+      template: snippets/system_context.md
+  role:
+    R: sa
+    A: developer
+  validated_by:
+- topic: Process sequence
+  semantics:
+    kind: artefact
+  purpose:
+    statement: End-to-end time-ordered flow across all containers — the SA's technical re-expression of the TO-BE 
+      process as a Mermaid sequence diagram.
+  acquisition:
+    modes:
+    - design
+    - interview
+    design:
+      instruction: 'SA derives from PDD process steps. Order participants: human actor, upstream system (if out of scope),
+        source system, Orchestrator, Dispatcher, Performer, target system. Use the standard REFramework loop pattern for queue-based
+        processes.'
+    interview:
+      question: 'Describe the end-to-end sequence across containers: scheduling trigger, Dispatcher query and enqueue, Performer
+        per-item loop, and handoff to any Aggregator or downstream system.'
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '3.2'
+      required: true
+    arch-review:
+      owns: true
+      role: solution timing diagram — Mermaid sequenceDiagram
+      section: '4.2'
+      required: true
+  role:
+    R: sa
+    A: developer
+  validated_by:
+  concept:
+    model:
+      process_sequence:
+        type: string
+        description: Mermaid sequence diagram source — SA-authored
+- topic: Architecture decision records
+  semantics:
+    kind: decision
+  purpose:
+    statement: Document key architectural choices — context, option selected, and trade-offs accepted — so reviewers and
+      future developers understand why the implementation looks the way it does.
+  acquisition:
+    modes:
+    - imported
+    - interview
+    imported:
+      instruction: 'Create one YAML file per decision in docs/adr/ using the ADR-0000 naming convention. Each file must include
+        id, title, status, context, decision, and consequences. Optional: affects (list of artefact ids) and supersedes (list
+        of ADR ids replaced by this record). The renderer imports these files via --adr-dir; the dedicated parser (adr.py)
+        writes them back from the SDD.'
+    interview:
+      question: What non-obvious design choices require justification — framework selection, execution mode, exception 
+        strategy, deployment pattern? For each, document the context, decision, alternatives, and consequences.
+  concept:
+    model:
+      adrs:
+        type: list
+        required: false
+        item:
+          id:
+            type: string
+            required: false
+            description: Stable trace ID — auto-assigned (dec_xxxxxx). Manual override preserved.
+          code:
+            type: string
+            description: Human display code — ADR-0001. Parsed from heading.
+          title:
+            type: string
+          status:
+            type: string
+            enum: adr_status
+          context:
+            type: string
+          decision:
+            type: string
+          rejected_options:
+            type: string
+            required: false
+          consequences:
+            type: string
+          affects:
+            type: list
+            item:
+              type: string
+            required: false
+          supersedes:
+            type: list
+            item:
+              type: string
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/adr.py
+    from_markdown: scripts/cpm_rpa/adr.py
+    parse_from: adr
+  artefacts:
+    adr:
+      owns: true
+      required: false
+      role: source of truth — one file per decision
+    sdd:
+      role: rendered inventory
+      section: '3.7'
+      template: snippets/adr_inventory.md
+      validated_by:
+    arch-review:
+      role: ADR inventory — rationale visible to reviewers
+      section: '4.4'
+      template: snippets/adr_inventory.md
+  role:
+    R: sa
+    A: developer
+    C:
+    - pm
+  validated_by:
+- topic: Container architecture
+  semantics:
+    kind: artefact
+  purpose:
+    statement: Deployable UiPath projects with framework, trigger, robot type, and queue contract — the C4 Level 2 view.
+  acquisition:
+    modes:
+    - design
+    - interview
+    design:
+      instruction: 'SA decides component decomposition based on the Solution type. Choose an archetype per component from
+        component_archetype enum. Classic RPA pattern: rpa_dispatcher + rpa_performer + optional rpa_aggregator. Agentic pattern:
+        maestro or agent at the top, rpa_tool or api_workflow as leaf executors. Document the queue contract for any queue
+        boundary between components explicitly.'
+    interview:
+      question: 'What components make up this solution? For each: name, archetype (rpa_dispatcher / rpa_performer / rpa_aggregator
+        / rpa_tool / maestro / agent / api_workflow / web_app / rpa_library), trigger, and queue boundary if applicable.'
+  concept:
+    model:
+      containers:
+        type: list
+        item:
+          id:
+            type: string
+            required: false
+            description: Stable trace ID — auto-assigned by parser (cmp_xxxxxx). Manual override allowed.
+          name:
+            type: string
+          archetype:
+            type: enum
+            enum: component_archetype
+          framework:
+            type: string
+          trigger:
+            type: string
+          runtime:
+            type: string
+          queue_writes:
+            type: string
+            required: false
+          queue_reads:
+            type: string
+            required: false
+      component_design_rpa_dispatcher:
+        type: object
+        required: false
+      component_design_rpa_performer:
+        type: object
+        required: false
+      component_design_rpa_aggregator:
+        type: object
+        required: false
+      component_design_rpa_tool:
+        type: object
+        required: false
+      component_design_maestro:
+        type: object
+        required: false
+      component_design_agent:
+        type: object
+        required: false
+      component_design_api_workflow:
+        type: object
+        required: false
+      component_design_web_app:
+        type: object
+        required: false
+      component_design_rpa_library:
+        type: object
+        required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '3.3'
+      required: true
+      template:
+      - snippets/containers.md
+      - snippets/component_design_rpa_dispatcher.md
+      - snippets/component_design_rpa_performer.md
+      - snippets/component_design_rpa_aggregator.md
+      - snippets/component_design_rpa_tool.md
+      - snippets/component_design_maestro.md
+      - snippets/component_design_agent.md
+      - snippets/component_design_api_workflow.md
+      - snippets/component_design_web_app.md
+      - snippets/component_design_rpa_library.md
+    tdd:
+      role: implementation detail
+    arch-review:
+      role: component summary
+      section: '4.3'
+      required: true
+      template: snippets/containers.md
+  role:
+    R: sa
+    A: developer
+  validated_by:
+- topic: Component architecture
+  semantics:
+    kind: artefact
+  purpose:
+    statement: Module-level inventory with stable IDs and archetypes — the C4 Level 3 view that connects architecture to
+      effort estimation and test planning.
+  acquisition:
+    modes:
+    - design
+    - interview
+    design:
+      instruction: SA maps each process stage to buildable modules using the archetype catalog. Assign a stable 
+        cmp_{stage}_{application} ID to each. Standard REFramework shell modules (shell, init, finalize) are always 
+        present; add one row per enrich/execute application variant.
+    interview:
+      question: For each pipeline stage (shell, init, ingest, enrich, decide, execute, complete, finalize), what module 
+        handles it, which application does it touch, what surface, and what exception IDs does it raise?
+  concept:
+    model:
+      components:
+        type: list
+        item:
+          id:
+            type: string
+          stage:
+            type: string
+          archetype:
+            type: string
+          module:
+            type: string
+          responsibility:
+            type: string
+          application:
+            type: string
+          surface:
+            type: string
+          receives:
+            type: string
+            required: false
+          produces:
+            type: string
+            required: false
+          exception_refs:
+            type: string
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '3.4'
+      required: true
+      template: snippets/components.md
+    tdd:
+      role: L4 code-level detail
+  role:
+    R: sa
+    A: developer
+  validated_by:
+- topic: Runtime config (assets, queues, schedule)
+  semantics:
+    kind: artefact
+  purpose:
+    statement: Specify Orchestrator assets, queue names, and trigger schedule so the deployment is repeatable and 
+      environment-independent.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What Orchestrator assets, queue names, and trigger schedule will this process use? Specify naming 
+        conventions.
+  concept:
+    model:
+      production_environment:
+        type: string
+      trigger_schedule:
+        type: string
+      process_input:
+        type: string
+      expected_output:
+        type: string
+      orchestrator_queues:
+        type: string
+      orchestrator_asset_names:
+        type: string
+      credentials_storage:
+        type: string
+      multiple_resolutions_supported:
+        type: string
+      recommended_resolution:
+        type: string
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    tdd:
+      owns: true
+      section: '1.1'
+      required: true
+      template: snippets/tdd_deployment_parameters.md
+    sdd:
+      owns: true
+      section: '4'
+      required: true
+  role:
+    R: developer
+    A: sa
+  validated_by:
+- topic: Dependencies
+  semantics:
+    kind: constraint
+  purpose:
+    statement: List all package, library, and internal component dependencies so the build environment can be reproduced
+      exactly.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which packages, libraries, or internal components does this process depend on? Include versions where 
+        known.
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '4'
+      required: true
+    tdd:
+      role: package versions
+  role:
+    R: developer
+    A: sa
+  validated_by:
+  concept:
+    model:
+      integrations:
+        type: list
+        description: Per-system integration summary; computed at generation/parse time — do not author directly
+        derived: join(applications[in_scope==true], system_credentials on system=name, components on application=name)
+        item:
+          system:
+            type: string
+            description: application name; references applications.item.name
+          integration_method:
+            type: string
+            description: derived from applications.item.automation_surface
+          direction:
+            type: string
+            description: derived from component stages that reference this system
+          auth_method:
+            type: string
+            description: references system_credentials.item.auth_method for this system
+    uses:
+    - applications
+    - system_credentials
+    - components
+- topic: Credentials / security
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Ensure every system authentication is documented with auth method, asset type, and rotation policy so the
+      robot is secure and maintainable.
+    review: 'For each system the robot authenticates to, the documentation must specify: (1) authentication method — username/password,
+      public/private key pair (e.g. SFTP, SSH), API key, OAuth/SSO via Entra ID, or certificate; (2) storage — which Orchestrator
+      Asset type: Credential (username + password) or Text (private key, API key, token, URL); wrong type is a defect; (3)
+      retention and rotation — credential or key lifetime and what the robot does when a credential expires, a key is rotated,
+      or a token is revoked. The robot account itself must be identified as a named Entra ID user (e.g. cg371p), not described
+      generically. Rate ''good'' if all three dimensions are documented for every system, Orchestrator Asset types are correct,
+      and rotation handling is defined. Rate ''medium'' if systems and auth methods are named but rotation/retention is TBD.
+      Rate ''low'' if any system''s auth method is undocumented, an Asset type is wrong, credentials are hardcoded, or the
+      robot account is not a named Entra ID user.
+
+      '
+  acquisition:
+    modes:
+    - interview
+    - default
+    interview:
+      question: What credentials are needed, how are they stored, and what data protection or compliance considerations 
+        apply?
+    default:
+      pii_present: Yes / No
+      gdpr_legal_basis: '[TBD — e.g., Art. 6(1)(b) contract performance]'
+      data_minimisation: '[TBD — what data is retained after processing]'
+      data_retention: '[TBD]'
+      audit_trail: Orchestrator job logs + transaction logs
+      mitbestimmung_works_council: '[TBD — required / not required / completed]'
+      other_compliance: '[TBD]'
+  concept:
+    model:
+      system_credentials:
+        type: list
+        item:
+          system:
+            type: string
+            description: application name; references applications.item.name
+          environment:
+            type: string
+            enum:
+            - Dev
+            - Test
+            - Production
+          auth_method:
+            type: string
+          credential_asset:
+            type: string
+          asset_type:
+            type: string
+            enum:
+            - Credential
+            - Text
+          rotation:
+            type: string
+            required: false
+          status:
+            type: string
+            enum:
+            - Open
+            - In Progress
+            - Done
+      pii_present:
+        type: string
+      gdpr_legal_basis:
+        type: string
+      data_minimisation:
+        type: string
+      data_retention:
+        type: string
+      audit_trail:
+        type: string
+      mitbestimmung_works_council:
+        type: string
+      other_compliance:
+        type: string
+        required: false
+    uses:
+    - applications
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '8'
+      required: true
+      template:
+      - snippets/system_credentials.md
+      - snippets/data_protection.md
+      validated_by:
+  role:
+    R: sa
+    A: dpo
+    C:
+    - developer
+  validated_by:
+- topic: Capacity / throughput analysis
+  semantics:
+    kind: metric
+  purpose:
+    statement: Calculate machine utilisation against the processing window to determine whether one runtime is 
+      sufficient or scaling is required.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Given the volume and per-item timing, what is the expected machine utilisation and is one runtime 
+        sufficient?
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    pdd:
+      role: volume only
+    sdd:
+      owns: true
+      section: '3.5'
+      required: true
+      template: snippets/volume.md
+  role:
+    R: sa
+    A: developer
+  validated_by:
+  concept:
+    model:
+      processing_window_min:
+        type: integer
+        description: Minutes per day within which the full daily volume must be cleared
+      runtimes_standard:
+        type: integer
+        description: Runtimes required to process daily_volume within processing_window_min
+      runtimes_peak:
+        type: integer
+        description: Runtimes required to process peak_volume within processing_window_min
+      queue_sla:
+        type: string
+        required: false
+        description: Agreed SLA for queue processing (e.g. all items processed within 4 h of submission)
+      scalable:
+        type: boolean
+        description: Whether the solution supports multi-robot scale-out
+- topic: Recommended runtime count
+  semantics:
+    kind: metric
+  purpose:
+    statement: State the minimum number of runtimes required to meet the SLA under peak conditions so infrastructure is 
+      provisioned correctly.
+  acquisition:
+    modes:
+    - estimate
+    - interview
+    estimate:
+      instruction: SA calculates from peak daily volume, per-item processing time, and available window. runtime_count =
+        ceil(peak_volume * avg_item_seconds / window_seconds).
+    interview:
+      question: Based on the utilisation analysis, how many runtimes are needed at standard and peak load, and what 
+        threshold should trigger an auto-scaling event?
+  concept:
+    uses:
+    - schedule
+    model:
+      recommended_runtime_count:
+        type: list
+        required: false
+        item:
+          scenario:
+            type: string
+          volume:
+            type: string
+          runtimes_required:
+            type: string
+          notes:
+            type: string
+      runtime_count:
+        type: integer
+        required: true
+        description: Minimum runtimes to clear peak daily volume within the processing window
+      peak_utilisation_pct:
+        type: number
+        derived: (peak_volume * avg_item_seconds) / (runtime_count * window_seconds) * 100
+      scaling_trigger:
+        type: string
+        description: Condition that would require an additional runtime (e.g. volume exceeds X or window shrinks below Y
+          minutes)
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: sdd
+  artefacts:
+    sdd:
+      owns: true
+      section: '3.6'
+      role: scaling design
+      required: true
+      template: snippets/recommended_runtime_count.md
+  role:
+    R: sa
+    A: pm
+  validated_by:
+- topic: Domain terminology
+  semantics:
+    kind: concept
+  purpose:
+    statement: Define project-specific terms and abbreviations so all stakeholders share a common vocabulary throughout 
+      the project.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What project-specific terms, abbreviations, and system names need a shared definition?
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: glossary
+  artefacts:
+    glossary:
+      owns: true
+      required: true
+    pdd:
+      role: source of terms
+    sdd:
+      role: source of terms
+    tdd:
+      role: source of terms
+  role:
+    R: ba
+    A: process-owner
+    C:
+    - sa
+  validated_by:
+- topic: Coverage assessment
+  semantics:
+    kind: procedure
+  purpose:
+    statement: Evaluate which topics are covered, partially covered, or missing across all artefacts so gaps can be 
+      addressed before sign-off.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which document covers which topic, and are there any uncovered gaps? (Run at any time — not bound to a 
+        specific artefact stage.)
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+  artefacts:
+    pdd:
+      role: source topics
+  role:
+    R: sa
+  validated_by:
+- topic: Timeline / milestones
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Establish delivery milestones so all teams can plan dependencies and stakeholders can track progress.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: What are the key delivery milestones — design complete, build complete, UAT start, go-live — and by 
+        when?
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: project_plan
+  artefacts:
+    sdd:
+      role: phases
+    project_plan:
+      owns: true
+      required: true
+      template: snippets/milestones.md
+  role:
+    R: pm
+    A: sa
+  validated_by:
+  concept:
+    model:
+      milestones:
+        type: list
+        item:
+          milestone:
+            type: string
+          target_date:
+            type: string
+            required: false
+          responsible:
+            type: string
+            required: false
+          status:
+            type: string
+            required: false
+- topic: Domain data model
+  semantics:
+    kind: concept
+  purpose:
+    statement: Identify every input the process works with, where it comes from, and in what form.
+  acquisition:
+    modes:
+    - interview
+    - document
+    interview:
+      question: 'What inputs does this process work with? For each: name it as the business calls it, identify which steps
+        use it, which system it comes from, in what format it arrives (document, database record, API response, screen data,
+        file, or queue item), where exactly within that system, and whether the data is structured (fixed fields) or unstructured
+        (free text, scanned image, PDF without embedded fields).'
+  concept:
+    model:
+      entities:
+        type: list
+        item:
+          id:
+            type: string
+            required: false
+          name:
+            type: string
+          steps:
+            type: string
+            required: false
+          source:
+            type: object
+            item:
+              application:
+                type: string
+                required: false
+              input_type:
+                type: string
+              location:
+                type: string
+                required: false
+          target:
+            type: object
+            required: false
+          structured:
+            type: boolean
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown:
+  artefacts:
+    pdd:
+      role: consumes — limited rendering
+      section: '2.6'
+      template: snippets/process_data.md
+      validated_by:
+    sdd:
+      role: consumes — detailed technical rendering
+    tdd:
+      role: consumes — implementation contracts
+  role:
+    R: sa
+    A: developer
+  validated_by:
+- topic: Data flow and field mapping
+  semantics:
+    kind: concept
+  purpose:
+    statement: Map source fields to target fields for every system integration so transformations are unambiguous and 
+      testable.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Which source field maps to which target field for each system integration? What transformations or 
+        parsing steps are required?
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+  artefacts:
+    tdd:
+      role: implements mappings
+    sdd:
+      role: integration overview
+  role:
+    R: developer
+    A: sa
+  validated_by:
+- topic: Observations and findings
+  semantics:
+    kind: constraint
+  purpose:
+    statement: Single unified list of observations, improvements, removals, and open issues across all artefacts, 
+      filtered by kind into the appropriate document sections.
+  acquisition:
+    modes:
+    - interview
+    interview:
+      question: Are there discovery observations (PDD), future improvements or items removed from scope (SDD), or open 
+        technical issues and blockers (TDD)?
+  concept:
+    model:
+      observations:
+        type: list
+        item:
+          id:
+            type: string
+            required: false
+            description: Stable trace ID — auto-assigned by parser (obs_xxxxxx). Manual override allowed.
+          kind:
+            type: string
+            enum: observation_kind
+          title:
+            type: string
+          description:
+            type: string
+            required: false
+          category:
+            type: string
+            required: false
+          impact:
+            type: string
+            required: false
+          owner:
+            type: string
+            required: false
+          status:
+            type: string
+            enum: observation_status
+            required: false
+  transforms:
+    to_markdown: scripts/cpm_rpa/renderer.py
+    from_markdown: scripts/cpm_rpa/parser.py
+    parse_from: pdd
+  artefacts:
+    pdd:
+      owns: true
+      required: false
+      role: discovery observations (kind=observation)
+      section: '4'
+      template: snippets/observations_discovery.md
+    sdd:
+      owns: true
+      required: false
+      role: future improvements + removed items (kind=improvement|removal)
+      section: '10'
+      template:
+      - snippets/observations_improvement.md
+      - snippets/observations_removal.md
+    tdd:
+      owns: true
+      required: false
+      role: open technical issues and blockers (kind=issue)
+      template: snippets/observations_issues.md
+  role:
+    R: sa
+    A: ba
+    C:
+    - developer
+  validated_by:
+shared:
+- name: project_identity
+  description: 'Process-level identity fields that appear in PDD section 2.1, SDD section 2.2, TDD section 1.1, and the arch
+    chapter header. Parsed from 2-column flipped tables and merged into the root project-data namespace. Fields that overlap
+    with project.json (studio_version, expression_language, target_framework) are auto-populated by the renderer from project.json
+    when --project is supplied.
+
+    '
+  model:
+    process_area_function:
+      type: string
+    short_description:
+      type: string
+    roles_performing_the_process:
+      type: string
+    ftes_performing_the_process:
+      type: string
+    exception_rate:
+      type: string
+    input_data:
+      type: string
+    output_data:
+      type: string
+    github_org:
+      type: string
+    github_repo:
+      type: string
+    studio_version:
+      type: string
+    robot_versions:
+      type: string
+    expression_language:
+      type: string
+    target_framework:
+      type: string
+    workflow_analyzer_ruleset:
+      type: string
+    company_package_prefix:
+      type: string
+    cicd_enabled:
+      type: string
+      enum:
+      - true
+      - false
+    development_environment:
+      type: string
+    config_method:
+      type: string
+      enum:
+      - Orchestrator Assets
+      - config.xlsx
+      - CodedConfig (TOML)
+      - CodedConfig (xlsx)
+      - appsettings.json
+- name: branching
+  description: 'Git branching strategy for the project. One entry per branch or branch pattern. Authored in TDD section 1.2.
+    Maps branches to environments and documents deploy triggers and protection rules.
+
+    '
+  model:
+    branches:
+      type: list
+      items:
+        name:
+          type: string
+        pattern:
+          type: string
+        environment:
+          type: string
+        deploy_trigger:
+          type: string
+          enum:
+          - push
+          - PR merge
+          - manual
+        protected:
+          type: boolean
+        purpose:
+          type: string
+- name: process_configuration
+  description: 'CodedConfig schema — typed C# configuration generated by ConFormMold from per-environment config files (TOML
+    or xlsx). Populated automatically by the renderer when --config-dev / --config-test / --config-prod are supplied. Authored
+    in TDD section 1.4.
+
+    '
+  model:
+    config_class:
+      type: string
+    config_envs:
+      type: list
+      items:
+        type: string
+    config_sections:
+      type: list
+      items:
+        name:
+          type: string
+        properties:
+          type: list
+          items:
+            name:
+              type: string
+            type:
+              type: string
+- name: platform_overview
+  description: 'High-level UiPath platform fields written in SDD section 2.2 as a flipped table. Detailed spec lives in the
+    "TO-BE platform" topic model; these are the document-level summary rows that a reader sees first.
+
+    '
+  model:
+    master_project_name:
+      type: string
+    uipath_product_scope:
+      type: string
+- name: sdd_meta
+  description: SDD-specific header fields not covered by the generic lifecycle model.
+  model:
+    pdd_reference:
+      type: string
+- name: estimation_meta
+  description: Estimation-specific header fields not covered by the generic lifecycle model.
+  model:
+    confidence:
+      type: string
+      enum:
+      - Low
+      - Medium
+      - High
+    contingency:
+      type: string
+domain_model:
+  description: 'Canonical entity schema. Every artefact (PDD, SDD, TDD, C# DTOs) renders a projection of this model. Topics
+    drive the interview; this section owns the schema and projection rules.
+
+    '
+  uses:
+  - applications
+  artefacts:
+    domain_model:
+      owns: true
+      required: true
+    pdd:
+      role: consumes — limited rendering
+      section: '2.6'
+      template: snippets/process_data.md
+    sdd:
+      role: consumes — detailed technical rendering
+    tdd:
+      role: consumes — implementation contracts
+    csharp_dto:
+      role: consumes — generated initial DTO classes
+      renderer: scripts/cpm_rpa/dto_renderer.py
+      output: generated/dto/*.cs
+  schema:
+    entities:
+      type: list
+      item:
+        id:
+          type: string
+          required: false
+          description: Stable trace ID — auto-assigned by parser (obj_xxxxxx). Manual override allowed.
+        name:
+          type: string
+        description:
+          type: string
+          required: false
+        steps:
+          type: list
+          item:
+            type: string
+          required: false
+        structured:
+          type: boolean
+          required: false
+        source:
+          type: object
+          model:
+            application:
+              type: string
+              required: false
+            input_type:
+              type: string
+              enum: input_type
+            location:
+              type: string
+              required: false
+        target:
+          type: object
+          required: false
+          model:
+            application:
+              type: string
+              required: false
+            location:
+              type: string
+              required: false
+        fields:
+          type: list
+          item:
+            name:
+              type: string
+            type:
+              type: string
+              enum: field_type
+            required:
+              type: boolean
+            identifier:
+              type: boolean
+              required: false
+            nullable:
+              type: boolean
+              required: false
+            enum:
+              type: list
+              item:
+                type: string
+              required: false
+            format:
+              type: string
+              required: false
+            example:
+              type: string
+              required: false
+            item_type:
+              type: string
+              required: false
+            csharp_type:
+              type: string
+              required: false
+        relationships:
+          type: list
+          required: false
+          item:
+            target_entity:
+              type: string
+            cardinality:
+              type: string
+              enum: cardinality
+        conversions:
+          type: list
+          required: false
+          item:
+            from:
+              type: string
+            to:
+              type: string
+            rule:
+              type: string
+            lossless:
+              type: boolean
+              required: false
+        validations:
+          type: list
+          required: false
+          item:
+            field:
+              type: string
+            rule:
+              type: string
+            on_failure:
+              type: string
+        dto_hint:
+          type: object
+          required: false
+          model:
+            class_name:
+              type: string
+            namespace:
+              type: string
+              required: false
+
+# -----------------------------------------------------------------------------
+# Per-artefact lifecycle model — shape is the same for all lifecycle-enabled
+# artefacts (pdd, sdd, estimation). schema.model_fields() expands these with
+# the artefact id as prefix: pdd_version, sdd_history, estimation_approvals, …
+# -----------------------------------------------------------------------------
+lifecycle_model:
+  header:
+    version:
+      type: string
+    date:
+      type: string
+    status:
+      type: string
+      enum:
+      - Draft
+      - Review
+      - Approved
+  history:
+    type: list
+    item:
+      version:
+        type: string
+      date:
+        type: string
+      author:
+        type: string
+      role:
+        type: string
+      changes:
+        type: string
+  approvals:
+    type: list
+    item:
+      version:
+        type: string
+      role:
+        type: string
+      name:
+        type: string
+      department:
+        type: string
+      date:
+        type: string
+
+# -----------------------------------------------------------------------------
+# Enumerations — id+label pairs used across topics, models, and assessments.
+# Inline enum: lists in concept.model fields use the ids defined here.
+# Assessment tools resolve ids to labels; unset required fields → "[TBD]".
+# -----------------------------------------------------------------------------
+enums:
+  observation_kind:
+  - id: observation
+    label: Discovery observation
+  - id: improvement
+    label: Future improvement
+  - id: removal
+    label: Removed from scope
+  - id: issue
+    label: Open issue
+  observation_status:
+  - id: open
+    label: Open
+  - id: resolved
+    label: Resolved
+  - id: deferred
+    label: Deferred
+  - id: accepted
+    label: Accepted (known risk)
+  - id: wont_fix
+    label: Won't fix
+  stakeholder_role:
+  - id: sa
+    label: Solution Architect
+  - id: ba
+    label: Business Analyst
+  - id: pm
+    label: Project Manager
+  - id: process-owner
+    label: Process Owner
+  - id: sponsor
+    label: Business Sponsor
+  - id: works-council
+    label: Works Council (Betriebsrat)
+  - id: dpo
+    label: Data Protection Officer
+  - id: developer
+    label: RPA Developer
+  - id: ops
+    label: Operations / Support
+  pipeline_stage:
+  - id: init
+    label: Init
+  - id: ingest
+    label: Ingest
+  - id: enrich
+    label: Enrich
+  - id: decide
+    label: Decide
+  - id: execute
+    label: Execute
+  - id: complete
+    label: Complete
+  - id: finalize
+    label: Finalize
+  automation_surface:
+  - id: ui
+    label: UI Automation
+  - id: api
+    label: REST / SOAP API
+  - id: database
+    label: Database (SQL / ODBC)
+  - id: file
+    label: File System
+  - id: email
+    label: Email (IMAP / SMTP / M365)
+  - id: queue
+    label: Message Queue
+  - id: platform
+    label: UiPath Platform Component
+  task_status:
+  - id: not_started
+    label: Not Started
+  - id: in_progress
+    label: In Progress
+  - id: done
+    label: Done
+  - id: blocked
+    label: Blocked
+  - id: skipped
+    label: Skipped
+  milestone_status:
+  - id: pending
+    label: Pending
+  - id: reached
+    label: Reached
+  - id: blocked
+    label: Blocked
+  gate_status:
+  - id: open
+    label: Open
+  - id: met
+    label: Met
+  - id: waived
+    label: Waived
+  project_status:
+  - id: planning
+    label: Planning
+  - id: in_progress
+    label: In Progress
+  - id: on_hold
+    label: On Hold
+  - id: complete
+    label: Complete
+  - id: cancelled
+    label: Cancelled
+  input_type:
+  - id: digital
+    label: Natively Digital (Excel / DB export)
+  - id: OCR
+    label: OCR / Scanned Image
+  - id: PDF
+    label: PDF
+  - id: xlsx
+    label: Excel / XLSX
+  - id: csv
+    label: CSV
+  - id: email
+    label: Email
+  - id: api
+    label: API / REST / SOAP
+  - id: database
+    label: Database (SQL)
+  - id: manual
+    label: Manual / Paper
+  field_type:
+  - id: string
+    label: String
+  - id: integer
+    label: Integer
+  - id: number
+    label: Number / Decimal
+  - id: boolean
+    label: Boolean
+  - id: date
+    label: Date
+  - id: datetime
+    label: DateTime
+  - id: enum
+    label: Enum
+  - id: list
+    label: List / Array
+  - id: object
+    label: Object / Nested
+  cardinality:
+  - id: one_to_one
+    label: '1:1'
+  - id: one_to_many
+    label: 1:N
+  - id: many_to_one
+    label: N:1
+  - id: many_to_many
+    label: M:N
+  adr_status:
+  - id: proposed
+    label: Proposed
+  - id: accepted
+    label: Accepted
+  - id: deprecated
+    label: Deprecated
+  - id: superseded
+    label: Superseded
+  acquisition_mode:
+  - id: interview
+    label: Interview
+  - id: inferred
+    label: Inferred
+  - id: imported
+    label: Imported
+  - id: generated
+    label: Generated
+  - id: observed
+    label: Observed
+  - id: computed
+    label: Computed
+  - id: approved
+    label: Approved
+  - id: discovered
+    label: Discovered
+
+# -----------------------------------------------------------------------------
+# Project management model — entity shapes for project-blueprint.yaml.
+# A blueprint instantiates these shapes into a concrete delivery plan.
+# Separation: build effort (tasks) is distinct from run costs (recurring).
+# Gate criteria live on milestones only — tasks carry predecessors only.
+# -----------------------------------------------------------------------------
+  uipath_platform_layers:
+  - id: discovery
+    label: Discovery
+    components:
+    - id: process_mining_discovery
+      label: Process Mining
+    - id: task_mining
+      label: Task Mining
+    - id: communications_mining_discovery
+      label: Communications Mining (discovery)
+  - id: automation
+    label: Automation
+    components:
+    - id: rpa_unattended
+      label: RPA — Unattended / VM Robot (BOR)
+    - id: rpa_attended
+      label: RPA — Attended (FOR)
+    - id: integration_service
+      label: Integration Service (API connectors)
+    - id: maestro
+      label: Maestro / Workflow Orchestration
+    - id: agents
+      label: Agents (Agentic / LLM-driven)
+    - id: test_automation
+      label: Test Automation (Test Suite)
+  - id: cognitive_ai
+    label: Cognitive / AI
+    components:
+    - id: document_understanding
+      label: Document Understanding / IDP
+    - id: ai_center
+      label: AI Center (custom models)
+    - id: communications_mining_runtime
+      label: Communications Mining (runtime)
+  - id: human_in_the_loop
+    label: Human-in-the-loop
+    components:
+    - id: action_center
+      label: Action Center
+    - id: apps
+      label: Apps (custom UI)
+  - id: data_reporting
+    label: Data & Reporting
+    components:
+    - id: data_service
+      label: Data Service
+    - id: insights
+      label: Insights
+    - id: process_mining_operational
+      label: Process Mining (operational)
+  - id: infrastructure
+    label: Infrastructure
+    components:
+    - id: automation_cloud
+      label: Automation Cloud (SaaS)
+    - id: automation_suite
+      label: Automation Suite (on-premise / k8s)
+    - id: serverless_robots
+      label: Serverless Robots
+    - id: vm_robots
+      label: VM-based Robots
+  platform_selection:
+  - id: in_scope
+    label: In Scope
+  - id: out_of_scope
+    label: Out of Scope
+  - id: considered_rejected
+    label: Considered / Rejected
+  - id: tbd
+    label: TBD
+  component_archetype:
+  - id: rpa_tool
+    label: RPA Tool
+    runtime_type: Process
+    description: RPA process invoked synchronously as a tool by an agent or orchestration flow. No queue boundary.
+  - id: rpa_dispatcher
+    label: RPA Dispatcher
+    runtime_type: Process
+    description: Queries source system and enqueues items into an Orchestrator queue. Linear framework.
+  - id: rpa_performer
+    label: RPA Performer
+    runtime_type: Process
+    description: REFramework process that consumes queue items one at a time. Queue-triggered.
+  - id: rpa_aggregator
+    label: RPA Aggregator
+    runtime_type: Process
+    description: 'Post-processes completed transactions: reporting, handoff, or cleanup. Linear framework.'
+  - id: maestro
+    label: Maestro Orchestration
+    runtime_type: ProcessOrchestration
+    description: BPMN process orchestration flow. Coordinates calls to agents, RPA tools, API workflows.
+  - id: agent
+    label: Agent
+    runtime_type: Agent
+    description: UiPath Agent — LLM-driven agentic component that calls tools (including RPA processes).
+  - id: api_workflow
+    label: API Workflow
+    runtime_type: Api
+    description: API Workflow exposing an HTTP endpoint via the JSON DSL.
+  - id: web_app
+    label: Web App
+    runtime_type: WebApp
+    description: UiPath Apps web application — user-facing UI with workflow action bindings.
+  - id: rpa_library
+    label: RPA Library
+    runtime_type: Library
+    description: Reusable RPA library — not deployed as a standalone process; referenced by other projects.
+project_model:
+  stage:
+    id:
+      type: string
+    name:
+      type: string
+    begin:
+      type: string
+    end:
+      type: string
+  group:
+    id:
+      type: string
+    name:
+      type: string
+    stage:
+      type: string
+  task:
+    id:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+      required: false
+    group:
+      type: string
+    role:
+      R:
+        type: string
+      A:
+        type: string
+        required: false
+      C:
+        type: list
+        item:
+          type: string
+        required: false
+      I:
+        type: list
+        item:
+          type: string
+        required: false
+    effort_pd:
+      type: number
+    status:
+      type: string
+      enum: task_status
+      required: false
+    predecessors:
+      type: list
+      item:
+        type: string
+      required: false
+  milestone:
+    id:
+      type: string
+    name:
+      type: string
+    status:
+      type: string
+      enum: milestone_status
+      required: false
+    predecessors:
+      type: list
+      item:
+        type: string
+      required: false
+    gate:
+      type: list
+      required: false
+      item:
+        criterion:
+          type: string
+        status:
+          type: string
+          enum: gate_status
+        validated_by:
+          type: string
+          required: false

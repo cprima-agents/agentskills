@@ -36,6 +36,21 @@ check:
 test:
     uv run pytest
 
+# ── skill sync ────────────────────────────────────────────────────────────────
+# Each sync-* recipe reads one AGENTSKILLS_SYNC_<SKILLNAME> env var pointing to
+# the upstream source folder. Set these in a local .env file (gitignored) or
+# your shell profile before running.
+
+sync-uip-methodology:
+    rsync -av --exclude='*.pyc' --exclude='__pycache__/' \
+      "$AGENTSKILLS_SYNC_UIP_METHODOLOGY/" \
+      "skills/uip-methodology/"
+
+sync-folder-harvest:
+    rsync -av --exclude='*.pyc' --exclude='__pycache__/' \
+      "$AGENTSKILLS_SYNC_FOLDER_HARVEST/" \
+      "skills/folder-harvest/"
+
 # ── folder-harvest ─────────────────────────────────────────────────────────────
 
 # Harvest files from one or more folders into <name>_harvested/ siblings

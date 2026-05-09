@@ -36,6 +36,13 @@ check:
 test:
     uv run pytest
 
+# ── folder-harvest ─────────────────────────────────────────────────────────────
+
+# Harvest files from one or more folders into <name>_harvested/ siblings
+# Usage: just harvest path/to/folder [-- --hint path/to/folder=label --dry-run]
+harvest *ARGS:
+    uv run skills/folder-harvest/scripts/harvest.py {{ARGS}}
+
 # ── uips-log-parser ────────────────────────────────────────────────────────────
 
 # Run the log parser (pass args after --)

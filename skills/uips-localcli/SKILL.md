@@ -188,7 +188,8 @@ echo "Using: $UIPCLI"
 
 ```bash
 "$UIPCLI" package pack "<project.json or project-folder>" \
-  --output "<output-folder>"
+  --output "<output-folder>" \
+  --disableTelemetry
 ```
 
 Produces a `.nupkg` in `<output-folder>`.
@@ -201,7 +202,8 @@ Produces a `.nupkg` in `<output-folder>`.
 "$UIPCLI" package analyze "<path/to/project.json>" \
   --analyzerTraceLevel Warning \
   --resultPath "<output.json>" \
-  --traceLevel Off
+  --traceLevel Off \
+  --disableTelemetry
 ```
 
 | Flag | Notes |
@@ -209,6 +211,7 @@ Produces a `.nupkg` in `<output-folder>`.
 | Positional arg | Path to `project.json` file (or folder containing one) |
 | `--analyzerTraceLevel` | `Off\|Error\|Warning\|Info\|Verbose` |
 | `--traceLevel` | `Off\|Error\|Warning\|Info\|Verbose` |
+| `--disableTelemetry` | Always include — suppresses UiPath telemetry calls |
 | `--nugetConfigFilePath` | **Not available** in net6 |
 | `--governanceFilePath` | **Not available** in net6 |
 
@@ -221,7 +224,8 @@ Produces a `.nupkg` in `<output-folder>`.
   --analyzerTraceLevel Warning \
   --resultPath "<output.json>" \
   --traceLevel None \
-  --nugetConfigFilePath "<NuGet.config>"
+  --nugetConfigFilePath "<NuGet.config>" \
+  --disableTelemetry
 ```
 
 Add `--governanceFilePath` when using a governance policy from Automation Ops:
@@ -232,7 +236,8 @@ Add `--governanceFilePath` when using a governance policy from Automation Ops:
   --resultPath "<output.json>" \
   --traceLevel None \
   --nugetConfigFilePath "<NuGet.config>" \
-  --governanceFilePath "<governance.json>"
+  --governanceFilePath "<governance.json>" \
+  --disableTelemetry
 ```
 
 | Flag | Notes |
@@ -242,6 +247,7 @@ Add `--governanceFilePath` when using a governance policy from Automation Ops:
 | `--traceLevel` | `None\|Critical\|Error\|Warning\|Information\|Verbose` |
 | `--nugetConfigFilePath` | Required for custom/local rule pack feeds |
 | `--governanceFilePath` | Optional; governance policy file |
+| `--disableTelemetry` | Always include — suppresses UiPath telemetry calls |
 
 Result JSON format (array of violation objects):
 
@@ -302,3 +308,4 @@ Run a specific entry point:
 | Project-level violations | `FilePath` is the workspace directory, not a `.xaml` file — do not expect a filename |
 | UiRobot ≠ uipcli | uipcli has no local execute command; use `UiRobot.exe execute` for running processes locally |
 | Never install uipcli directly | Do not call `dotnet tool install UiPath.CLI.Windows` manually — always go through `Invoke-CpmfUipsCLI install-tool` |
+| Always pass `--disableTelemetry` | Include on every `uipcli` invocation (`pack`, `analyze`, and any other subcommand) — omitting it causes uipcli to phone home |

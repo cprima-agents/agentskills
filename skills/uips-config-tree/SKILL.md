@@ -1,5 +1,5 @@
 ---
-name: ConFigTree
+name: uips-config-tree
 description: >
   Generate a typed C# CodedConfig class and a UiPath clipboard snippet from a
   REFramework Config.xlsx. Use when a developer wants to replace

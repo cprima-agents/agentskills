@@ -17,10 +17,15 @@ compatibility: Windows, macOS, Linux (requires Python 3.11+, uv)
 metadata:
   author: Christian Prior-Mamulyan
   version: 0.1.0
-allowed-tools: [shell]
+allowed-tools: shell
 ---
 
 # UiPath RPA Design
+
+> **Prerequisites:** Python 3.11+, [uv](https://docs.astral.sh/uv/).
+> After installing this skill, run `uv sync` from the repo root (`cprima-agents/agentskills`)
+> where `pyproject.toml` declares the runtime dependencies.
+> The scripts under `scripts/` will not work without it.
 
 ## Decision tree — pick a workflow in 3 seconds
 

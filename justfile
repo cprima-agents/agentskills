@@ -42,14 +42,10 @@ test:
 # your shell profile before running.
 
 sync-uip-methodology:
-    rsync -av --exclude='*.pyc' --exclude='__pycache__/' \
-      "$AGENTSKILLS_SYNC_UIP_METHODOLOGY/" \
-      "skills/uip-methodology/"
+    robocopy $env:AGENTSKILLS_SYNC_UIP_METHODOLOGY skills\uip-methodology /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }
 
 sync-folder-harvest:
-    rsync -av --exclude='*.pyc' --exclude='__pycache__/' \
-      "$AGENTSKILLS_SYNC_FOLDER_HARVEST/" \
-      "skills/folder-harvest/"
+    robocopy $env:AGENTSKILLS_SYNC_FOLDER_HARVEST skills\folder-harvest /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }
 
 # ── folder-harvest ─────────────────────────────────────────────────────────────
 

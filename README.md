@@ -2,11 +2,22 @@
 
 A collection of agent skills for UiPath Studio development workflows.
 
-## Installation (Claude Code)
+## Installation
 
-```
-/plugin marketplace add cprima-agents/agentskills
-/plugin install uips-skills@agentskills
+Install individual skills via the GitHub CLI (`gh skill` requires the [gh-skill extension](https://cli.github.com)):
+
+```bash
+# Install all skills
+gh skill install cprima-agents/agentskills uip-methodology
+gh skill install cprima-agents/agentskills uips-config-tree
+gh skill install cprima-agents/agentskills uips-localcli
+gh skill install cprima-agents/agentskills uips-log-parser
+
+# Preview a skill before installing
+gh skill preview cprima-agents/agentskills uip-methodology
+
+# Update all installed skills
+gh skill update --all
 ```
 
 ## Skills

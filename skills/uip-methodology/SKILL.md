@@ -13,10 +13,6 @@ description: >
   "generate SDD", "amend SDD", "update SDD", "fill in the PDD", "let's do the arch
   review", or when a PDD is available and the next step is technical design.
 license: Apache-2.0
-compatibility: Windows, macOS, Linux (requires Python 3.11+, uv)
-metadata:
-  author: Christian Prior-Mamulyan
-  version: 0.1.0
 allowed-tools: shell
 ---
 

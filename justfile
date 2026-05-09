@@ -43,11 +43,7 @@ test:
 
 sync-uip-methodology:
     robocopy $env:AGENTSKILLS_SYNC_UIP_METHODOLOGY skills\uip-methodology /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }
-    $f='skills\uip-methodology\SKILL.md'; $c=Get-Content $f -Raw; \
-      $c=$c -replace 'name: uipath-rpa-design','name: uip-methodology'; \
-      $c=$c -replace 'license: MIT','license: Apache-2.0'; \
-      $c=$c -replace 'RPA-ITS-Forge/cpm-skills','cprima-agents/agentskills'; \
-      Set-Content $f -Value $c -NoNewline
+    git apply patches/uip-methodology-SKILL.md.patch
 
 sync-folder-harvest:
     robocopy $env:AGENTSKILLS_SYNC_FOLDER_HARVEST skills\folder-harvest /E /XF *.pyc /XD __pycache__; if ($LASTEXITCODE -lt 8) { exit 0 }

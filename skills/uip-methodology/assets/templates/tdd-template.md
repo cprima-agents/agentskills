@@ -136,8 +136,6 @@ public class InvoiceDto
 }
 ```
 
----
-
 #### InvoiceLineItem
 
 **DTO:** `CpmRpa.InvoicePosting.Domain.InvoiceLineItemDto`  

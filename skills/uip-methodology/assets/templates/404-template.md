@@ -14,8 +14,6 @@
 
 3. Re-run the renderer once the document exists.
 
----
-
 | Field | Value |
 | --- | --- |
 | Expected file pattern | `{{ file_glob or "[unknown]" }}` |

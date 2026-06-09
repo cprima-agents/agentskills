@@ -38,7 +38,7 @@ Has a PDD already?
 **Default artefact order** (one per project milestone, in sequence):
 
 ```
-PDD  →  SDD  →  TDD  →  estimation  →  arch-review
+PDD  →  SDD  →  TDD  →  estimation  →  ROI  →  arch-review
 ```
 
 Each artefact is a prerequisite for the next. Never skip forward unless the user
@@ -51,8 +51,11 @@ explicitly asks. Offer the next artefact at the end of each workflow output.
 | "create / fill out a PDD" or is a BA describing a process | **Workflow B** |
 | "create an SDD" / "design the solution" / provides a PDD | **Workflow C, Create mode** |
 | "amend / update / fix the SDD" / provides an existing SDD | **Workflow C, Amend mode** |
+| "create estimation" / "estimate the project" / "fill out estimation" | **Workflow D, Estimation** |
+| "create ROI" / "calculate ROI" / "fill out ROI" | **Workflow D, ROI** |
 | "what next?" after a PDD | Say: next step is the SDD; offer Workflow C |
 | "what next?" after an SDD | Say: next step is the TDD, then estimation, then arch-review |
+| "what next?" after an estimation | Say: next step is ROI; offer Workflow D ROI |
 | "start interview" / role unclear / no artefacts yet | **Workflow A** |
 
 ---
@@ -131,7 +134,7 @@ After all required own topics are covered:
 3. Ask: "Shall I generate the [target artefact] draft now, or continue?"
 4. If confirmed: load the matching template from `assets/templates/`, fill every section
    where answers were collected, mark uncovered sections `[TBD]`, write to
-   `projects/<project_slug>/`
+   `docs/`
 
 ### Modes at a glance
 
@@ -167,7 +170,7 @@ Work through the 5 PDD sections in order. For each section:
 
 ### 2. Write the file
 Load `assets/templates/pdd-template.md`, substitute all captured values, and write
-to `projects/<slug>/<process-name-kebab>-pdd.md`.
+to `docs/<process-name-kebab>-pdd.md`.
 
 ### 3. Finish
 Tell the user the output path. List any `[TBD]` items remaining and suggest they
@@ -231,7 +234,7 @@ to define the project list and workflow inventory. Present for confirmation befo
 
 ### 5. Write the file
 Load `assets/templates/sdd-template.md`, substitute all values, and write to
-`projects/<slug>/<process-name-kebab>-sdd.md`.
+`docs/<process-name-kebab>-sdd.md`.
 
 Section 9 is an estimation reference stub — fill in the four summary rows only if data
 is available. Effort detail lives in a separate `<process-name>-estimation.md`; do not
@@ -239,8 +242,16 @@ inline it in the SDD.
 
 ### 6. Finish
 Report the output path. List any `[SME REVIEW]` items remaining. Suggest next steps:
-hand-off to TDD author, generate `<process-name>-estimation.md` from
-`assets/templates/estimation-template.md`, open UiPath Studio project.
+
+- Hand-off to TDD author
+- Generate `<process-name>-estimation.md` from `assets/templates/estimation-template.md`
+- When arch-review is ready, render it and generate the ROI chart:
+  ```bash
+  uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
+  uv run .claude/skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
+  ```
+  `generate_roi_chart.py` carries its own PEP 723 dependency header — `uv run` installs plotly/kaleido automatically. No `--project` flag needed.
+- Open UiPath Studio project
 
 ---
 
@@ -282,6 +293,87 @@ questions in section 10 that are now resolved vs. still open.
 
 ---
 
+## Workflow D — Estimation & ROI
+
+Produces `<process-name>-estimation.md` and/or `<process-name>-roi.md` from their
+templates. **Always load the template — never write these files as plain markdown.**
+Both files are structured data documents: the renderer reads their region blocks to
+compute derived values and generate the ROI chart. Without regions, the pipeline breaks.
+
+### Estimation
+
+#### 1. Collect inputs
+Read the SDD. Extract from section 3 (component inventory / workflow inventory):
+- List of pipeline components (Dispatcher, Performer stages, Aggregator if present)
+- Application list and access method (drives complexity)
+- Schedule / volume (drives effort multipliers)
+
+Ask the architect for any of these that are missing or `[TBD]`:
+- PD (person-day) rate in €
+- Contingency percentage (default 10 %)
+- Per-component: complexity (`low` / `medium` / `high`), base effort in PDs, confidence
+
+Group related questions — at most 5 per message.
+
+#### 2. Build the file
+Load `assets/templates/estimation-template.md`. Substitute all values collected above.
+For every component in the SDD's component inventory, add a row to the `effort_items`
+region. For every `[TBD]` that is still unknown, write `[TBD]` in the cell — do not
+omit the row.
+
+**Region map — all six must be present and paired in the output:**
+
+| Region | Contains |
+| --- | --- |
+| `estimation_header` | Version, date, status, confidence, contingency |
+| `estimation_history` | Document version history table |
+| `estimation_approvals` | Sign-off table |
+| `effort_items` | Per-component effort table (machine-readable) |
+| `cost_items` | Monthly run costs table (machine-readable) |
+| `estimation_summary` | Financial summary: PD rate, totals, build cost |
+
+Write to `docs/<process-name-kebab>-estimation.md`.
+
+#### 3. Finish
+Run the linter. List any `[TBD]` items remaining. Offer to generate the ROI next.
+
+---
+
+### ROI
+
+#### 1. Collect inputs
+Read `docs/<process-name>-estimation.md` for `monthly_run_cost` and `build_cost`.
+Read the PDD for monthly transaction volume.
+
+Ask for any missing values:
+- FTE cost rate (€/hour)
+- AHT saved per transaction (minutes)
+
+#### 2. Build the file
+Load `assets/templates/roi-template.md`. Substitute all values.
+
+**Region map — all four must be present and paired in the output:**
+
+| Region | Contains |
+| --- | --- |
+| `roi_header` | Version, date, status |
+| `roi_history` | Document version history table |
+| `roi_inputs` | FTE cost rate, AHT saved — the two SA-provided inputs |
+| `roi_summary` | Full financial summary table (monthly/annual savings, payback, net benefit) |
+
+Write to `docs/<process-name-kebab>-roi.md`.
+
+#### 3. Finish
+Run the linter. List any `[TBD]` items remaining. When both estimation and ROI are
+complete and the arch-review template is filled, generate the ROI chart:
+
+```bash
+uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
+uv run .claude/skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
+```
+
+---
+
 ## Shared Rules
 
 - Never invent selectors, UI element identifiers, or field names — mark as `[DEV: inspect at build time]`.
@@ -290,3 +382,10 @@ questions in section 10 that are now resolved vs. still open.
 - Do not copy PDD sections verbatim into an SDD — reorganise content into the SDD structure.
 - The Workflow Inventory table is the most important SDD section; every PDD in-scope step must map to at least one workflow file.
 - **Amend mode only**: never touch a field that already has a real value.
+- **After writing or amending any artefact, run the linter and fix all FAILs before reporting completion to the user:**
+  ```bash
+  uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/lint_docs.py docs/<artefact-file>.md
+  ```
+  Exit code 1 means failures remain — fix them and re-run. List remaining WARNs to the user (TBD count, SME review items, etc.).
+- **Preserve all `<!-- #region name -->` / `<!-- #endregion name -->` markers** from the template verbatim. These are load-bearing: the parser (`cpm_rpa/parser.py`) uses them to extract structured data for rendering. Write the captured content *between* the tags, never outside or instead of them. A region with no data gets `[TBD]` between its tags — never an empty or missing block. Never strip, rename, or reorder region markers.
+- **All diagrams must be written as Mermaid code blocks** (```` ```mermaid ```` fenced blocks). Never describe diagrams in prose or ASCII art. Use `flowchart TD` for process flows and `C4Context` / `graph LR` for system context and architecture diagrams.

@@ -637,10 +637,17 @@ topics:
           used:
             type: string
             description: "'\\u2713' = in use, '—' = not used"
-      uipath_version:
+      uipath_studio_version:
         type: string
+        label: UiPath Studio Version
+      browser:
+        type: string
+        required: false
+        label: Browser
+        description: Browser used by the robot (e.g. Chrome, Edge, Firefox)
       execution_mode:
         type: string
+        label: Execution Mode
         enum:
         - XAML
         - Coded C#
@@ -1803,6 +1810,7 @@ topics:
       data_retention: '[TBD]'
       audit_trail: Orchestrator job logs + transaction logs
       mitbestimmung_works_council: '[TBD — required / not required / completed]'
+      dpia: '[TBD — required / not required / completed]'
       other_compliance: '[TBD]'
   concept:
     model:
@@ -1848,6 +1856,10 @@ topics:
         type: string
       mitbestimmung_works_council:
         type: string
+      dpia:
+        type: string
+        required: false
+        description: Data Protection Impact Assessment status (Required / Not required / Completed)
       other_compliance:
         type: string
         required: false

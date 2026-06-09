@@ -6,4 +6,5 @@
 | Data retention | {{ data_retention or '[TBD]' }} |
 | Audit trail | {{ audit_trail or 'Orchestrator job logs + transaction logs' }} |
 | Mitbestimmung / works council | {{ mitbestimmung_works_council or '[TBD — required / not required / completed]' }} |
+| DPIA | {{ dpia or '[TBD — required / not required / completed]' }} |
 | Other compliance | {{ other_compliance or '[TBD]' }} |

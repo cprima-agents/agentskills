@@ -184,8 +184,6 @@ Key architectural choices made for this project. Full ADRs in `docs/adr/`.
 
 **Decision:** Adopt REFramework as the Performer shell. Business logic lives exclusively in `Process/` workflows invoked from Process Transaction. The Init, GetTransactionData, and SetTransactionStatus states are left intact …
 
----
-
 #### ADR-0002 — Coded Config (TOML) for runtime settings
 
 **Status:** Accepted

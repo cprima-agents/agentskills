@@ -275,13 +275,13 @@ Calculate machine utilisation against the processing window to determine whether
 <!-- #region volume -->
 | Item | Value |
 | --- | --- |
-| Daily volume (items) | [TBD] |
-| Peak volume (items) | [TBD] |
-| Average handling time per item (min) | [TBD] |
+| Daily volume | [TBD] |
+| Peak volume | [TBD] |
+| AHT (min) | [TBD] |
 | Processing window (min) | [TBD] |
 | Items per runtime per day | [TBD — window ÷ AHT] |
-| Runtimes required (standard load) | [TBD] |
-| Runtimes required (peak load) | [TBD] |
+| Runtimes standard | [TBD] |
+| Runtimes peak | [TBD] |
 | Scalable | Yes / No |
 | Queue SLA | [TBD] |
 <!-- #endregion volume -->
@@ -322,8 +322,6 @@ Document key architectural choices — context, option selected, and trade-offs 
 **Decision:** Adopt REFramework as the Performer shell. Business logic lives exclusively in Process/ workflows invoked from Process Transaction. The Init, GetTransactionData, and SetTransactionStatus states are left intact; no modifications are made to the REFramework flow.
 
 **Consequences:** Developers must understand REFramework state semantics. Non-standard retry logic is not permitted inside the Process Transaction state. Framework upgrades require re-baselining the shell from the current UiPath template.
-
----
 
 #### ADR-0002 — Coded Config (TOML) for runtime settings
 

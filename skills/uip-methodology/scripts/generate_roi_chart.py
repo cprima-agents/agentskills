@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "plotly>=5.24",
+#   "kaleido>=0.2",
+# ]
+# ///
 """Generate an ROI payback chart from an architecture review document.
 
 Usage:
-    uv run uipath/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
-    uv run uipath/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md --out docs/roi-chart.png
+    uv run skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
+    uv run skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md --out docs/roi-chart.png
 """
 
 from __future__ import annotations

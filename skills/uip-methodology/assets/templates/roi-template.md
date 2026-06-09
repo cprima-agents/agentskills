@@ -25,8 +25,8 @@ Volume and run-cost data flow from the Estimation document. Fill in the two SA-p
 <!-- #region roi_inputs -->
 | Item | Value |
 | --- | --- |
-| FTE cost rate (€/hour) | [TBD] |
-| AHT saved per item (min) | [TBD] |
+| FTE cost rate | [TBD] |
+| AHT saved min | [TBD] |
 <!-- #endregion roi_inputs -->
 
 > **FTE cost rate** — use your standard blended rate for the roles performing this process.  

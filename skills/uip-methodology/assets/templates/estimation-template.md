@@ -137,8 +137,6 @@
 | Deploy | 7.0 |
 | **Grand Total** | **[TBD]** |
 
----
-
 ## 1. Component Effort Model
 
 Per-component effort detail. `component_id` references the component inventory in SDD section 3.4. Derived totals are computed by the renderer — do not edit the derived rows manually.

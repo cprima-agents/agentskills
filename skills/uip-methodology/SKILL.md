@@ -247,8 +247,8 @@ Report the output path. List any `[SME REVIEW]` items remaining. Suggest next st
 - Generate `<process-name>-estimation.md` from `assets/templates/estimation-template.md`
 - When arch-review is ready, render it and generate the ROI chart:
   ```bash
-  uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
-  uv run .claude/skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
+  uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
+  uv run .claude/skills/uip-methodology/scripts/generate_roi_chart.py docs/arch-review.md
   ```
   `generate_roi_chart.py` carries its own PEP 723 dependency header — `uv run` installs plotly/kaleido automatically. No `--project` flag needed.
 - Open UiPath Studio project
@@ -368,8 +368,8 @@ Run the linter. List any `[TBD]` items remaining. When both estimation and ROI a
 complete and the arch-review template is filled, generate the ROI chart:
 
 ```bash
-uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
-uv run .claude/skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-review.md
+uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/cpm_rpa/cli.py render arch_review --data docs/project-data.yaml --output docs/arch-review.md
+uv run .claude/skills/uip-methodology/scripts/generate_roi_chart.py docs/arch-review.md
 ```
 
 ---
@@ -384,8 +384,21 @@ uv run .claude/skills/uipath-rpa-design/scripts/generate_roi_chart.py docs/arch-
 - **Amend mode only**: never touch a field that already has a real value.
 - **After writing or amending any artefact, run the linter and fix all FAILs before reporting completion to the user:**
   ```bash
-  uv run --project .claude/skills/uipath-rpa-design/ .claude/skills/uipath-rpa-design/scripts/lint_docs.py docs/<artefact-file>.md
+  uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/lint_docs.py docs/<artefact-file>.md
   ```
   Exit code 1 means failures remain — fix them and re-run. List remaining WARNs to the user (TBD count, SME review items, etc.).
 - **Preserve all `<!-- #region name -->` / `<!-- #endregion name -->` markers** from the template verbatim. These are load-bearing: the parser (`cpm_rpa/parser.py`) uses them to extract structured data for rendering. Write the captured content *between* the tags, never outside or instead of them. A region with no data gets `[TBD]` between its tags — never an empty or missing block. Never strip, rename, or reorder region markers.
+- **Generate Mermaid diagrams from a `code-structure.yml`** using the `mermaid` CLI subcommand:
+  ```bash
+  # stdout
+  uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/cpm_rpa/cli.py mermaid docs/code-structure.yml
+
+  # write file — explicit path
+  uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/cpm_rpa/cli.py mermaid docs/code-structure.yml --out docs/code-structure.md
+
+  # write file — auto-derive name ({stem}.{C4Level}.md)
+  uv run --project .claude/skills/uip-methodology/ .claude/skills/uip-methodology/scripts/cpm_rpa/cli.py mermaid docs/code-structure.yml --auto-out
+  ```
+  Options: `--style flow|tree` (default: flow), `--depth N`, `--types process,phase,module,unit`, `--colorscheme solarized-light|default`.
+  `flow` renders phases as subgraph containers; `tree` renders raw parent→child edges.
 - **All diagrams must be written as Mermaid code blocks** (```` ```mermaid ```` fenced blocks). Never describe diagrams in prose or ASCII art. Use `flowchart TD` for process flows and `C4Context` / `graph LR` for system context and architecture diagrams.

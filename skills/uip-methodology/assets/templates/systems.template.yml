@@ -1,0 +1,25 @@
+version: "0.1"
+
+systems:
+  - name: string                # required; human-readable system name
+    symbol: string              # emoji; optional display hint
+    alias: string               # comma-separated lookup aliases (lowercase, no quotes)
+    description: string         # one-sentence purpose from the bot's perspective
+    role: source|target|enrichment|orchestration
+    interface: none|msgraph|WinGUI|rest-api|api|DHL.ITS.AppIntegration.FTP
+    accesstype: tbd|public|credential-asset
+    restrictions: tbd|string
+    notes: string               # caveats, scope limits, known constraints
+    screenshots:                # optional; system-level Object Repository screens (e.g. home/login)
+      - screen: string          # Name field from .objects/**/.metadata
+        file: string            # relative path under .screenshots/; "tbd" if not yet captured
+    rest_api_docs: string       # optional; URL to API reference (rest-api interface only)
+    operations:                 # optional; discrete operations the bot performs against this system
+      - id: string              # T-Code (SAP) or operation identifier (API)
+        purpose: string         # what the bot does in this operation
+        stage: enrich|execute
+        unit: string            # .xaml filename responsible for this operation
+        endpoint: string        # optional; HTTP method + path template (rest-api only)
+        screenshots:            # optional; screens visited during this operation
+          - screen: string      # Name field from .objects/**/.metadata
+            file: string        # relative path under .screenshots/; "tbd" if not yet captured

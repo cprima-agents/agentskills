@@ -1,0 +1,30 @@
+version: "0.1"
+
+CanonicalModel:
+  - genericName: string         # required; dot-notation path e.g. Order.DataSource, Peppol.IsRegistered
+                                # Namespace conventions: Order.* | Invoice.* | Supplier.* | Applicant.*
+                                #   TechnicalContact.* | Peppol.* | Sap.* | Execution.* | Meta.*
+                                #   Process.* | (custom namespace).*
+    description: string         # required; one-sentence meaning; include German email key in parentheses for ingest fields
+    dataType: string|enum|boolean|array|string(date)
+    multiplicity: "1"|"0..1"|"0..*"
+                                # "1"    — always present; required
+                                # "0..1" — optional; may be null/empty
+                                # "0..*" — repeating; used for array fields
+    defaultValue:               # null if no default; literal value otherwise
+    validValues:                # null if unconstrained; comma-separated list or description if enum/bounded
+    authoritativeSystems: string
+                                # who sets this field:
+                                #   mailbox              — sourced verbatim from the IKF email body
+                                #   SAP ERP              — looked up from SAP at enrich stage
+                                #   PEPPOL Directory API — returned by PEPPOL Helger or EU Directory API
+                                #   automation           — computed / derived by the RPA process itself
+    provenancePolicy:           # null or "authoritative-if-present" (field trusted as-is from the source)
+    emailKey:                   # null for non-ingest fields; German key string from IKF email body e.g. "EKP"
+    transform:                  # null if no transform; e.g. "date" (ISO-8601 parse) | "phone" (normalise)
+    pipelineStage: ingest|enrich|execute|all
+                                # ingest  — parsed from email body in GetTransactionItem / Init
+                                # enrich  — populated by SAP or PEPPOL lookups in Process stage
+                                # execute — written back after SAP ZBV_OC entry creation
+                                # all     — available and updated throughout (e.g. Meta.Observations)
+    pii: boolean                # true = Personal Identifiable Information; affects log masking and retention

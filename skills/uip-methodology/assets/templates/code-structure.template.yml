@@ -1,0 +1,180 @@
+# process-code-organization.template.yml
+#
+# Captures code organization of a Process*.xaml and its module→unit hierarchy.
+# One file per Process*.xaml.
+#
+# ORDERING RULE: depth-first pre-order.
+#   Each node is immediately followed by its children (and their subtrees),
+#   then the next sibling. Position in this file among same-parent nodes = sequence.
+#   parent field encodes nesting; file position encodes order. No order/after field needed.
+# REUSE:    a module appearing under multiple parents gets one node per
+#           occurrence, distinct ids (e.g. mod-enrich-sap, mod-enrich-sap-2)
+#
+# Node types:  process | phase | module | unit
+#
+# Minimal required fields per node:
+#   id, type, parent, status, name, file
+# Optional but recommended:
+#   comment, system, adapter_key, surface, steps, children (read-only hint)
+#
+# status values:
+#   implemented — file exists, wired, runs
+#   stub        — file exists, args wired, body is null-op
+#   pending     — file: ~ — design intent only, not yet created
+
+version: "0.1"
+
+nodes:
+
+  # ── Process ──────────────────────────────────────────────────────────────────
+  - id: proc-CHANGEME
+    type: process
+    parent: ~
+    status: pending|stub|implemented
+    name: Process_CHANGEME
+    file: Process/Process_CHANGEME.xaml
+    comment: |
+      One-line summary of what this process does.
+    surface:
+      in:
+        - name: in_ConFigTree
+          type: CodedConfig
+          comment: Typed config tree; adapter keys, credentials.
+        - name: in_TransactionItem
+          type: UiPath.Core.QueueItem
+          comment: Queue item from Orchestrator.
+        - name: in_Config
+          type: Dictionary(String, Object)
+          comment: Legacy RE Framework flat dict.
+      out: []
+      inout: []
+
+  - id: phase-initialize
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Initialize
+    comment: Build typed config; resolve credentials; open connections.
+    steps:
+      - Assign v_ConFigTree from in_Config
+      - GetAsset credentials
+
+  - id: phase-ingest
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Ingest
+    comment: Parse transaction payload into typed domain object.
+    steps:
+      - Deserialize in_TransactionItem.SpecificContent → v_Order
+
+  - id: phase-enrich
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Enrich
+    comment: Augment domain object with external system data.
+
+  - id: mod-enrich-sap
+    type: module
+    parent: phase-enrich
+    status: pending|stub|implemented
+    name: EnrichSap
+    file: Process/Enrich/SAP/EnrichSap.xaml
+    comment: Orchestrates N SAP GUI lookup modules in sequence.
+    system: SAP GUI (COM)
+    surface:
+      in:
+        - name: in_ConFigTree
+          type: CodedConfig
+        - name: in_SapSession
+          type: RPAForge.SAP.SapSession
+          comment: Caller owns session lifecycle (open/close).
+      out:
+        - name: out_Status
+          type: Dictionary(String, Object)
+      inout:
+        - name: io_Order
+          type: XrechnungOrder
+          reads:  []       # list field names read by this module
+          writes: []       # list field names written by this module
+
+  - id: mod-lookup-CHANGEME
+    type: module
+    parent: mod-enrich-sap
+    status: pending|stub|implemented
+    name: LookupSap_CHANGEME
+    file: Process/Enrich/SAP/LookupSap_CHANGEME.xaml
+    comment: One-line description of what this lookup determines.
+    system: SAP TCODE
+    adapter_key: in_ConFigTree.Settings.LookupSap_CHANGEMEAdapter
+    surface:
+      in:
+        - name: in_ConFigTree
+          type: CodedConfig
+        - name: in_SapSession
+          type: RPAForge.SAP.SapSession
+      out:
+        - name: out_Status
+          type: Dictionary(String, Object)
+          values: []       # list valid result codes: e.g. [FOUND, NOT_FOUND, ERROR]
+      inout:
+        - name: io_Order
+          type: XrechnungOrder
+          reads:  []
+          writes: []
+          notes: ""        # e.g. "SapIsEinvoiceNewCustomer = Not out_HasActivation"
+
+  - id: unit-lookup-CHANGEME-ADAPTER
+    type: unit
+    parent: mod-lookup-CHANGEME
+    status: pending|stub|implemented
+    name: LookupSap_CHANGEME_ADAPTER
+    file: Process/Enrich/SAP/LookupSap_CHANGEME_ADAPTER.cs
+    comment: COM automation detail; SAP screen path and field reads.
+    system: SAP TCODE
+    surface:
+      in:
+        - name: in_ConFigTree
+          type: CodedConfig
+        - name: in_SapSession
+          type: RPAForge.SAP.SapSession
+        - name: in_FIELD
+          type: string
+          comment: ""
+      returns:
+        - name: out_RESULT
+          type: bool
+        - name: out_Status
+          type: Dictionary(string, object)
+          values: []
+
+  - id: phase-decide
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Decide
+    comment: Apply business rules; set decision variable.
+    steps:
+      - "If <condition> → APPROVE"
+      - "Else → REJECT"
+
+  - id: phase-output
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Output
+    comment: Write result to queue; trigger downstream actions.
+    steps:
+      - SetTransactionStatus
+      - SendNotification (conditional)
+
+  - id: phase-finalize
+    type: phase
+    parent: proc-CHANGEME
+    status: pending|stub|implemented
+    name: Finalize
+    comment: Cleanup; close connections; log summary.
+    steps:
+      - CloseSapSession (if opened)
+      - LogMessage summary

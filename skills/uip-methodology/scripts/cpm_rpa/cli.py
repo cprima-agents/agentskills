@@ -20,6 +20,7 @@ from io import StringIO  # noqa: E402
 import typer  # noqa: E402
 from ruamel.yaml import YAML as _YAML  # noqa: E402
 
+from cpm_rpa import mermaid as _mermaid  # noqa: E402
 from cpm_rpa import renderer as _renderer  # noqa: E402
 from cpm_rpa import schema as _schema  # noqa: E402
 from cpm_rpa.config import DEFAULT_DATA, DEFAULT_DOCS, DEFAULT_SCHEMA  # noqa: E402
@@ -153,6 +154,69 @@ def parse(
     _y.dump(merged, _buf)
     output.write_text(_buf.getvalue(), encoding="utf-8")
     typer.echo(f"Written: {output}  ({len(extracted)} field(s) extracted from {source})")
+
+
+# ---------------------------------------------------------------------------
+# mermaid
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def mermaid(
+    file: Path = typer.Argument(..., help="code-structure.yml to render"),
+    style: str = typer.Option("flow", "--style", help="flow (subgraph phases) or tree (parent→child)"),
+    depth: int | None = typer.Option(None, "--depth", help="max depth from root (root=1); default: unlimited"),
+    types: str | None = typer.Option(
+        None, "--types",
+        help="node types to render as nodes, comma-separated: process,phase,module,unit",
+    ),
+    colorscheme: str = typer.Option(
+        "solarized-light", "--colorscheme",
+        help="color palette for status fills: solarized-light, default",
+    ),
+    out: Path | None = typer.Option(None, "--out", "-o", help="write to file instead of stdout"),
+    auto_out: bool = typer.Option(
+        False, "--auto-out",
+        help="auto-derive output filename as {stem}.{C4Level}{depth}.md",
+    ),
+) -> None:
+    """Render a code-structure YAML as a Mermaid flowchart diagram."""
+    if not file.exists():
+        typer.echo(f"ERROR: {file} not found.", err=True)
+        raise typer.Exit(1)
+
+    raw = _YAML(typ="safe").load(file.read_text(encoding="utf-8")) or {}
+    nodes: list[dict] = raw.get("nodes", [])
+    if not nodes:
+        typer.echo(f"ERROR: no nodes found in {file}", err=True)
+        raise typer.Exit(1)
+
+    allowed_types: set[str] | None = set(types.split(",")) if types else None
+    status_fill = _mermaid.COLORSCHEMES.get(colorscheme, _mermaid.COLORSCHEMES["solarized-light"])
+
+    g = _mermaid.build_graph(nodes)
+
+    for w in _mermaid.validate(g):
+        typer.echo(f"WARNING: {w}", err=True)
+
+    c4_title, depth_tag = _mermaid.c4_title_for(nodes, g, file.stem, depth, allowed_types, colorscheme)
+
+    if style == "flow":
+        lines = _mermaid.render_flow(g, depth, allowed_types, status_fill, c4_title)
+    else:
+        lines = _mermaid.render_tree(g, depth, allowed_types, status_fill, c4_title)
+
+    content = "\n".join(lines)
+
+    if out:
+        out.write_text(content + "\n", encoding="utf-8")
+        typer.echo(f"written: {out}", err=True)
+    elif auto_out:
+        auto_path = file.parent / f"{file.stem}.{c4_title.split(' | ')[0]}{depth_tag}.md"
+        auto_path.write_text(content + "\n", encoding="utf-8")
+        typer.echo(f"written: {auto_path}", err=True)
+    else:
+        typer.echo(content)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,111 @@
+version: "0.1"
+
+process: string               # required; kebab-case process identifier (e.g. e-rechnung-onboarding)
+description: string           # required; one-paragraph summary of scope, variants, and outcome
+
+# ─────────────────────────────────────────────
+# LANES  — swim-lane actors in the process diagram
+# ─────────────────────────────────────────────
+lanes:
+  - id: string                # required; SCREAMING_SNAKE e.g. LANE_RPA
+    label: string             # required; display name
+    parent: string            # optional; id of enclosing lane (for nested lanes)
+    note: string              # optional; e.g. "dashed — automated processing"
+
+# ─────────────────────────────────────────────
+# STEPS  — tasks, gateways, and events
+# ─────────────────────────────────────────────
+steps:
+
+  # ── task ──────────────────────────────────────────────────────────────────
+  - id: string                # required; SCREAMING_SNAKE step id, unique in file
+    lane: string              # required; ref to lanes[].id
+    type: task                # task | gateway | start_event | end_event | event
+    drawio_id: string         # optional; shape id in the draw.io source diagram
+    label: string             # required; human-readable step name (may be German)
+    system: string            # optional; ref to systems[].name (or alias) used in this step
+    sap_transaction: string   # optional; SAP T-Code executed in this step (SAP steps only)
+    next: string              # optional; default next step id (single-path tasks)
+    notes:                    # optional; design annotations, open points, constraints
+      - string
+    screenshots:              # optional; Object Repository screens relevant to this step
+      - screen: string        # Name from .objects/**/.metadata
+        file: string          # relative path under .screenshots/; "tbd" if not yet captured
+
+  # ── gateway ───────────────────────────────────────────────────────────────
+  - id: string
+    lane: string
+    type: gateway
+    drawio_id: string
+    label: string
+    system: string            # optional; system performing the evaluation
+    sap_transaction: string   # optional
+    notes:
+      - string
+    outcomes:                 # required for gateways; list of branches
+      - condition: string     # human-readable branch condition
+        next: string          # ref to steps[].id
+        exception: string     # optional; ref to exceptions[].id raised on this branch
+
+  # ── start / end event ─────────────────────────────────────────────────────
+  - id: string
+    lane: string
+    type: start_event|end_event|event
+    drawio_id: string
+    label: string
+    system: string
+    next: string
+    notes:
+      - string
+
+# ─────────────────────────────────────────────
+# TERMINAL STATES
+# ─────────────────────────────────────────────
+terminal_states:
+  - id: string                # required; SCREAMING_SNAKE e.g. END_SUCCESS
+    label: string             # required; human-readable outcome name
+    type: success|escalation|correction_loop
+    drawio_id: string         # optional; single draw.io shape id
+    drawio_ids:               # optional; list when multiple diagram shapes map here
+      - string
+    note: string              # optional; clarification
+
+# ─────────────────────────────────────────────
+# EXCEPTIONS
+# ─────────────────────────────────────────────
+exceptions:
+  - id: string                # required; EX_ prefix, SCREAMING_SNAKE
+    type: BusinessRuleException|SystemException
+    label: string             # short English name
+    trigger: string           # ref to steps[].id where this exception is raised
+    system: string            # optional; system that surfaces the exception
+    message: string           # human-readable description (may be German)
+    resolution: manual_scn|error_email_to_customer|loop_to_correction|continue_to_monitor|notify_scn_and_continue|email_to_stc
+    note: string              # optional; routing clarification (e.g. "flow continues after notification")
+    notes:                    # optional; list form when multiple clarifications needed
+      - string
+
+# ─────────────────────────────────────────────
+# TEST CASES
+# ─────────────────────────────────────────────
+test_cases:
+  - id: string                # required; TC_ prefix + zero-padded number e.g. TC_001
+    description: string       # required; one-line scenario summary
+    variant: string           # invoice variant under test (PEPPOL|ZUGFeRD|XRechnung_email|verschlüsselt_ZUGFeRD)
+    order_type: string        # Neuanlage|Änderung|Beendigung
+    input:                    # key-value map of driving inputs; keys are domain field names
+      key: value
+    expected_path:            # optional; ordered list of step ids for the happy/unhappy path
+      - string
+    expected_exception: string  # optional; ref to exceptions[].id expected to be raised
+    expected_outcome: string    # required; ref to terminal_states[].id or steps[].id
+    note: string                # optional; clarification for non-obvious routing
+
+# ─────────────────────────────────────────────
+# OPEN QUESTIONS
+# ─────────────────────────────────────────────
+open_questions:
+  - id: string                # required; OQ_ prefix + zero-padded number e.g. OQ_01
+    ref: string               # optional; ref to steps[].id this question belongs to
+    drawio_id: string         # optional; draw.io annotation shape id
+    text: string              # required; full question text (may be German)

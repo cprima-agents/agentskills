@@ -29,14 +29,18 @@ SHAPES: dict[str, tuple[str, str]] = {
 
 COLORSCHEMES: dict[str, dict[str, str]] = {
     "solarized-light": {
+        "":            "fill:#fdf6e3,color:#657b83,stroke:#93a1a1",
         "implemented": "fill:#eee8d5,color:#586e75,stroke:#859900,stroke-width:2px",
         "stub":        "fill:#93a1a1,color:#002b36,stroke:#b58900,stroke-width:2px",
         "pending":     "fill:#93a1a1,color:#002b36,stroke:#b58900",
+        "in-progress": "fill:#268bd2,color:#fdf6e3,stroke:#073642,stroke-width:2px",
     },
     "default": {
+        "":            "fill:#f8f9fa,color:#495057,stroke:#ced4da",
         "implemented": "fill:#2d6a4f,color:#fff,stroke:#1b4332",
         "stub":        "fill:#e76f51,color:#fff,stroke:#c45c3a",
         "pending":     "fill:#adb5bd,color:#000,stroke:#6c757d",
+        "in-progress": "fill:#f4a261,color:#000,stroke:#e76f51",
     },
 }
 
@@ -44,6 +48,7 @@ STATUS_LABEL: dict[str, str] = {
     "implemented": "[ok]",
     "stub":        "[stub]",
     "pending":     "[?]",
+    "in-progress": "[wip]",
 }
 
 # C4 level each node type maps to — embedded in diagram title/comment
@@ -210,7 +215,7 @@ def render_flow(
     for node in g.nodes:
         if node["id"] not in declared:
             continue
-        style = status_fill.get(node.get("status", ""))
+        style = status_fill.get(node.get("status", "")) or status_fill.get("")
         if style:
             lines.append(f"  style {_sid(node['id'])} {style}")
 
@@ -251,7 +256,7 @@ def render_tree(
     for node in g.nodes:
         if node["id"] not in declared:
             continue
-        style = status_fill.get(node.get("status", ""))
+        style = status_fill.get(node.get("status", "")) or status_fill.get("")
         if style:
             lines.append(f"  style {_sid(node['id'])} {style}")
 

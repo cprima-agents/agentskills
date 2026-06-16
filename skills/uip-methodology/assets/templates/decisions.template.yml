@@ -1,0 +1,33 @@
+version: "0.1"
+
+decisions:
+  - id: string                  # required; ref to steps[].id in process.yaml (gateway steps only)
+    sequence: integer|string    # required; execution order; integer for main chain (1, 2…), string for sub-branches ("6a", "6b"…)
+    question: string            # required; business question being evaluated (may be German)
+    inputs:                     # required; canonical fields or sources consumed to answer this question
+      - field: string           # canonical field name (CanonicalModel.genericName) or freetext description
+        source: string          # where the value comes from: system name, YAML file, or "IKF email body"
+        valid_values:           # optional; expected enum values for this input
+          - string
+    system: string              # required; system performing the evaluation; "none (field value check)" if local only
+    sap_transaction: string     # optional; single SAP T-Code used (SAP decisions only)
+    sap_transactions:           # optional; list form when multiple T-Codes may be used
+      - string
+    lookup_logic:               # optional; freetext rules describing how the system answer is interpreted
+      - string
+    detection_logic:            # optional; field-format rules used to classify input (e.g. ID prefix checks)
+      - string
+    three_checks:               # optional; PEPPOL three-check pattern — list the three named checks
+      - string
+    notes:                      # optional; design constraints, known edge cases, open points
+      - string
+    outcomes:                   # required; one entry per gateway branch
+      - result: string          # required; human-readable branch label (may be German; e.g. "Ja", "Nein (Beendigung)")
+        action: string          # required; what the bot does on this branch (one sentence)
+        next: string            # required; ref to steps[].id in process.yaml
+        exception: string       # optional; ref to exceptions[].id raised on this branch
+        terminal: string|false  # optional; ref to terminal_states[].id if this branch ends the process;
+                                #   false or omitted = flow continues (non-blocking exception)
+        observation:            # required; audit trail text appended to Meta.Observations at runtime
+          de: string            # German text; use {FieldName} placeholders for runtime values
+          en: string            # English text; use {FieldName} placeholders for runtime values

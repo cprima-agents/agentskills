@@ -173,6 +173,12 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
     errors: list[dict] = []
     warnings: list[dict] = []
     user_messages: list[dict] = []
+    testing_messages: list[dict] = []
+
+    _FRAMEWORK_BANNERS = re.compile(
+        r"(execution (started|ended)|initializing settings)",
+        re.IGNORECASE,
+    )
 
     for entry in entries:
         level = entry.get("level", "Unknown")
@@ -181,8 +187,13 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
             errors.append(entry)
         elif level == "Warning":
             warnings.append(entry)
-        if entry.get("logType") == "User":
+        log_type = entry.get("logType", "")
+        if log_type == "User":
             user_messages.append(entry)
+        elif log_type == "Default" and level == "Information":
+            msg = entry.get("message", "")
+            if not _FRAMEWORK_BANNERS.search(msg):
+                testing_messages.append(entry)
 
     ended_normally = "execution ended" in last.get("message", "").lower()
     has_errors = bool(errors)
@@ -210,6 +221,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
         "errors": errors,
         "warnings": warnings,
         "user_messages": user_messages,
+        "testing_messages": testing_messages,
         "_entries": entries,
     }
 
@@ -238,6 +250,13 @@ def print_report(summaries: list[dict], show_warnings: bool = False) -> None:
         print(f"       Initiated: {s['initiatedBy']}  |  Robot: {s['robotName']}")
         print(f"       Duration : {duration}")
         print(f"       Levels   : {_level_badge(s['counts'])}")
+
+        if s["testing_messages"]:
+            print(f"       Test results ({len(s['testing_messages'])}):")
+            for m in s["testing_messages"]:
+                ts = m.get("timeStamp", "")[:19].replace("T", " ")
+                msg = m.get("message", "").replace("\r\n", " | ").replace("\n", " | ")
+                print(f"         [{ts}] {msg}")
 
         if s["user_messages"]:
             print(f"       Messages ({len(s['user_messages'])}):")

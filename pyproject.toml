@@ -2,17 +2,28 @@
 name = "agentskills"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "jinja2>=3.1",
+    "kaleido>=0.2",
+    "markdown-it-py>=3.0",
+    "plotly>=5.24",
+    "ruamel.yaml>=0.18",
+    "typer>=0.12",
+]
 
 [dependency-groups]
 dev = [
+    "extract-msg>=0.37",
     "openpyxl>=3.1",
+    "pypdf>=4.0",
     "pytest>=8",
+    "python-docx>=0.8",
     "ruff>=0.8",
+    "xlrd>=2.0",
 ]
 
 [tool.uv.workspace]
-members = ["skills/uips-config-tree"]
+members = ["skills/uips-config-tree", "skills/uip-methodology"]
 
 [tool.pytest.ini_options]
 testpaths = ["skills"]

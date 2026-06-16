@@ -13,6 +13,9 @@ A collection of agent skills for UiPath Studio development workflows.
 
 | Skill | Description |
 |-------|-------------|
+| [uip-methodology](skills/uip-methodology/) | Guide BA, Solution Architect, and PM through authoring all RPA project artefacts — PDD, SDD, TDD, Estimation, ROI, Architecture Review |
+| [uips-config-tree](skills/uips-config-tree/) | Generate a typed C# CodedConfig class and a UiPath clipboard snippet from a REFramework Config.xlsx |
+| [uips-localcli](skills/uips-localcli/) | Locate, install, and invoke uipcli.exe and UiRobot.exe for UiPath package operations |
 | [uips-log-parser](skills/uips-log-parser/) | Parse and analyse UiPath Studio local execution logs to diagnose automation runs |
 
 ## Licensing

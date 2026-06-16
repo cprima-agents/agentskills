@@ -1,0 +1,13 @@
+[project]
+name = "uipath-rpa-design"
+version = "0.1.4"
+requires-python = ">=3.11"
+dependencies = [
+    "jinja2>=3.1",
+    "markdown-it-py>=3.0",
+    "ruamel.yaml>=0.18",
+    "typer>=0.12",
+]
+
+[tool.uv]
+package = false

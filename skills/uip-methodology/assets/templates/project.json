@@ -1,0 +1,127 @@
+{
+  "name": "InvoicePosting",
+  "projectId": "00000000-0000-0000-0000-000000000000",
+  "description": "Automated posting of vendor invoices into SAP MIRO via queue-based REFramework.",
+  "main": "Dispatcher.xaml",
+  "dependencies": {
+    "UiPath.Excel.Activities": "[2.24.3]",
+    "UiPath.Mail.Activities": "[2.2.10]",
+    "UiPath.MicrosoftOffice365.Activities": "[2.7.24]",
+    "UiPath.System.Activities": "[24.10.4]",
+    "UiPath.Testing.Activities": "[24.10.4]",
+    "UiPath.UIAutomation.Activities": "[25.10.12]"
+  },
+  "webServices": [],
+  "entitiesStores": [],
+  "schemaVersion": "4.0",
+  "studioVersion": "24.10.0.0",
+  "projectVersion": "0.0.1",
+  "runtimeOptions": {
+    "autoDispose": false,
+    "netFrameworkLazyLoading": false,
+    "isPausable": false,
+    "isAttended": false,
+    "requiresUserInteraction": false,
+    "supportsPersistence": false,
+    "workflowSerialization": "DataContract",
+    "excludedLoggedData": [
+      "Private:*",
+      "*password*"
+    ],
+    "executionType": "Workflow",
+    "readyForPiP": false,
+    "startsInPiP": false,
+    "mustRestoreAllDependencies": true,
+    "pipType": "ChildSession"
+  },
+  "designOptions": {
+    "projectProfile": "Production",
+    "outputType": "Process",
+    "libraryOptions": {
+      "includeOriginalXaml": false,
+      "privateWorkflows": []
+    },
+    "processOptions": {
+      "ignoredFiles": []
+    },
+    "fileInfoCollection": [],
+    "modernBehavior": true,
+    "saveToCloud": false
+  },
+  "expressionLanguage": "CSharp",
+  "entryPoints": [
+    {
+      "filePath": "Dispatcher.xaml",
+      "uniqueId": "00000000-0000-0000-0000-000000000001",
+      "input": [
+        {
+          "name": "in_ConfigFile",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        },
+        {
+          "name": "in_MailboxFolder",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        },
+        {
+          "name": "in_QueueName",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        }
+      ],
+      "output": []
+    },
+    {
+      "filePath": "Performer.xaml",
+      "uniqueId": "00000000-0000-0000-0000-000000000002",
+      "input": [
+        {
+          "name": "in_ConfigFile",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        },
+        {
+          "name": "in_QueueName",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        }
+      ],
+      "output": []
+    },
+    {
+      "filePath": "Aggregator.xaml",
+      "uniqueId": "00000000-0000-0000-0000-000000000003",
+      "input": [
+        {
+          "name": "in_ConfigFile",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        },
+        {
+          "name": "in_ReportDate",
+          "type": "System.DateTime",
+          "required": false,
+          "hasDefault": true
+        },
+        {
+          "name": "in_OutputFolder",
+          "type": "System.String",
+          "required": false,
+          "hasDefault": true
+        }
+      ],
+      "output": []
+    }
+  ],
+  "isTemplate": false,
+  "templateProjectData": {},
+  "publishData": {},
+  "targetFramework": "Windows"
+}

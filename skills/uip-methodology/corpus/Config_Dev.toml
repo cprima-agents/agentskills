@@ -1,0 +1,34 @@
+# InvoicePosting — Development configuration
+# Loaded at runtime by CodedConfig.Load() from this file's DataTable representation.
+# Authoritative source: this file. Do not hardcode values in XAML.
+
+[Settings]
+OrchestratorQueueName        = "InvoicePosting_Dev"
+OrchestratorQueueFolder      = "Shared"
+LogFBusinessProcessName      = "InvoicePosting"
+SapAdapter                   = "mock"
+OrchestratorDeadLetterQueue  = "Shared/dead-letter"
+
+[Constants]
+MaxRetryNumber                  = 1
+MaxConsecutiveSystemExceptions  = 3
+ShouldMarkJobAsFaulted          = false
+RetryNumberGetTransactionItem   = 2
+RetryNumberSetTransactionStatus = 2
+ExScreenshotsFolderPath         = "Exceptions_Screenshots"
+
+[Assets]
+# Values are Orchestrator asset paths: Folder/AssetName
+# Asset values are fetched at runtime via GetRobotAsset — not loaded from this file.
+SapCredential  = "cg371p/cred_SAP_Dev"
+SmtpCredential = "cg371p/cred_SMTP"
+
+[SAP]
+SystemId             = "DEV"
+Client               = "100"
+Language             = "DE"
+NavigateOnEntry      = true
+DrainPopups          = true
+ForceRestart         = false
+SapLogonDescription  = "SAP Dev"
+CredentialAsset      = "cg371p/cred_SAP_Dev"

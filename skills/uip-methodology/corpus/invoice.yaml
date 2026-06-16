@@ -1,0 +1,190 @@
+# Domain data model — Invoice posting process
+# Canonical YAML source of truth. Rendered (never parsed back) into PDD/SDD/TDD views.
+
+entities:
+
+  - name: Invoice
+    description: Accounts payable invoice for PO-based posting in SAP MIRO.
+    steps: ["1", "2", "3"]
+    structured: false
+    source:
+      application: SAP ECC
+      input_type: email
+      location: "Accounts Payable mailbox — subject pattern: Invoice [vendor]"
+    target:
+      application: SAP ECC
+      location: MIRO transaction — FI document
+    fields:
+      - name: invoice_number
+        type: string
+        required: true
+        identifier: true
+        nullable: false
+        example: "INV-2024-001234"
+      - name: invoice_date
+        type: date
+        required: true
+        identifier: false
+        nullable: false
+        csharp_type: DateTime
+        format: DD.MM.YYYY
+        example: "15.01.2024"
+      - name: total_amount
+        type: number
+        required: true
+        identifier: false
+        nullable: false
+        csharp_type: decimal
+        example: "1.234,56"
+      - name: currency
+        type: enum
+        required: true
+        identifier: false
+        nullable: false
+        enum: [EUR, USD, GBP]
+        example: EUR
+      - name: vendor_id
+        type: string
+        required: true
+        identifier: false
+        nullable: false
+        example: "VEND-001"
+      - name: po_number
+        type: string
+        required: true
+        identifier: false
+        nullable: false
+        example: "4500012345"
+      - name: line_items
+        type: list
+        item_type: InvoiceLineItem
+        required: false
+        nullable: true
+    relationships:
+      - target_entity: Vendor
+        cardinality: many_to_one
+      - target_entity: PurchaseOrder
+        cardinality: many_to_one
+    conversions:
+      - from: total_amount
+        to: decimal
+        rule: "Remove thousands separator (.) and replace comma decimal separator (,) with dot. Strip currency symbols."
+        lossless: true
+      - from: invoice_date
+        to: DateTime
+        rule: "Parse DD.MM.YYYY using CultureInfo.GetCultureInfo('de-DE')."
+        lossless: true
+    validations:
+      - field: invoice_number
+        rule: "matches pattern INV-YYYY-NNNNNN"
+        on_failure: BusinessRuleException
+      - field: total_amount
+        rule: "> 0"
+        on_failure: BusinessRuleException
+      - field: po_number
+        rule: "10-digit numeric string"
+        on_failure: BusinessRuleException
+    dto_hint:
+      class_name: InvoiceDto
+      namespace: CpmRpa.InvoicePosting.Domain
+
+  - name: InvoiceLineItem
+    description: Individual line on an invoice, linked to a PO position.
+    steps: ["2"]
+    structured: false
+    source:
+      application: SAP ECC
+      input_type: PDF
+      location: Invoice PDF attachment — line item table
+    fields:
+      - name: line_number
+        type: integer
+        required: true
+        identifier: true
+        nullable: false
+        example: "1"
+      - name: description
+        type: string
+        required: false
+        nullable: true
+        example: "Office supplies Q1"
+      - name: quantity
+        type: number
+        required: true
+        nullable: false
+        example: "10.0"
+      - name: unit_price
+        type: number
+        required: true
+        nullable: false
+        csharp_type: decimal
+        example: "12,50"
+      - name: amount
+        type: number
+        required: true
+        nullable: false
+        csharp_type: decimal
+        example: "125,00"
+      - name: tax_code
+        type: string
+        required: false
+        nullable: true
+        example: V1
+      - name: po_item
+        type: string
+        required: true
+        nullable: false
+        example: "00010"
+    relationships:
+      - target_entity: Invoice
+        cardinality: many_to_one
+    conversions:
+      - from: unit_price
+        to: decimal
+        rule: "German decimal format — same normalisation as Invoice.total_amount."
+        lossless: true
+      - from: amount
+        to: decimal
+        rule: "German decimal format — same normalisation as Invoice.total_amount."
+        lossless: true
+    validations:
+      - field: line_number
+        rule: ">= 1"
+        on_failure: BusinessRuleException
+      - field: quantity
+        rule: "> 0"
+        on_failure: BusinessRuleException
+      - field: unit_price
+        rule: "> 0"
+        on_failure: BusinessRuleException
+      - field: amount
+        rule: "> 0"
+        on_failure: BusinessRuleException
+      - field: po_item
+        rule: "5-digit zero-padded numeric string"
+        on_failure: BusinessRuleException
+    dto_hint:
+      class_name: InvoiceLineItemDto
+      namespace: CpmRpa.InvoicePosting.Domain
+
+notes:
+  - kind: observation
+    category: monitoring
+    finding: Robot completion emails must be routed to the AP ops mailbox, not the shared CoE inbox.
+    impact: Missed alerts if misconfigured
+    resolution_owner: AP Ops / SA
+  - kind: observation
+    category: compliance
+    finding: DPIA required — invoice PDFs contain vendor bank data (IBAN).
+    impact: Go-live blocked without DPO sign-off
+    resolution_owner: DPO
+  - kind: issue
+    project: InvoicePosting-Performer
+    finding: SAP MIRO selector breaks on dual-monitor setup — needs resilience testing on robot VM.
+    impact: High — process will fail silently
+    resolution_owner: Senior RPA Developer / Pre-UAT
+  - kind: issue
+    project: InvoicePosting-Dispatcher
+    finding: SOQL query returns duplicate queue items during month-end peak — deduplication logic unverified.
+    impact: Medium — double-posting risk
+    resolution_owner: Senior RPA Developer / Pre-GoLive

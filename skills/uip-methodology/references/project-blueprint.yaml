@@ -1,0 +1,372 @@
+# RPA Project Blueprint — standard delivery plan for a UiPath RPA process.
+#
+# Entity shapes are defined in rpa-methodology.yaml project_model:.
+# This file instantiates them for the DHL ITS RPA Dispatcher/Performer pattern.
+#
+# Estimation rendering levels (driven by the stage/group/task hierarchy):
+#   full         — every task row: id, name, description, role.R, effort_pd
+#   big-picture  — group totals:   group name, total effort_pd, roles involved
+#   collapsed    — stage totals:   stage name, total effort_pd
+#
+# Run costs are NOT part of this blueprint — they belong to the Run costs topic.
+# T&M note: a time-and-material service contract shares the same shape (role,
+#   effort, rate) but adds a day-rate and is billed per actuals, not per estimate.
+
+# ---------------------------------------------------------------------------
+# Stages
+# ---------------------------------------------------------------------------
+
+stages:
+
+  - id: discovery
+    name: Discovery
+    begin: m_start
+    end:   m_process_understood
+
+  - id: design
+    name: Design
+    begin: m_process_understood
+    end:   m_design_approved
+
+  - id: build
+    name: Build
+    begin: m_design_approved
+    end:   m_core_built
+
+  - id: test
+    name: Test
+    begin: m_core_built
+    end:   m_uat_passed
+
+  - id: deploy
+    name: Deploy
+    begin: m_uat_passed
+    end:   m_released
+
+# ---------------------------------------------------------------------------
+# Milestones
+# ---------------------------------------------------------------------------
+
+milestones:
+
+  - id: m_start
+    name: Project Start
+
+  - id: m_process_understood
+    name: Process Understanding Complete
+    status: pending
+    predecessors: [t_kickoff, t_as_is_analysis, t_system_access_check]
+    gate:
+      - { criterion: Completed and signed-off PDD,                                                           status: open }
+      - { criterion: "Works Council (Betriebsrat) Mitbestimmung approval obtained",                          status: open }
+      - { criterion: "Data Protection Officer approval obtained — DPIA completed if personal data is processed", status: open , validated_by: }
+      - { criterion: Test data set covering all exception scenarios,                                          status: open }
+
+  - id: m_design_approved
+    name: Design Approved
+    status: pending
+    predecessors: [t_pdd_review, t_solution_design, t_env_setup]
+    gate:
+      - { criterion: Robot user accounts created with required application permissions, status: open , validated_by: }
+      - { criterion: Credentials stored in Orchestrator Assets (no hardcoding),        status: open }
+      - { criterion: Dependencies with other projects documented,                       status: open }
+      - { criterion: SDD reviewed and signed off,                                       status: open }
+
+  - id: m_core_built
+    name: Core Automation Built
+    status: pending
+    predecessors: [t_unit_testing]
+
+  - id: m_uat_passed
+    name: UAT Passed
+    status: pending
+    predecessors: [t_sit, t_uat_prep, t_uat_support]
+    gate:
+      - { criterion: All UAT test cases passed or formally waived, status: open , validated_by: }
+      - { criterion: No open severity-1 defects,                   status: open }
+
+  - id: m_released
+    name: Released and Operational
+    status: pending
+    predecessors: [t_prod_deploy, t_hypercare, t_pm]
+    gate:
+      - { criterion: "Hypercare period complete (minimum 2 weeks)", status: open , validated_by: }
+      - { criterion: Handover to RUN team signed off,               status: open }
+
+# ---------------------------------------------------------------------------
+# Groups
+# ---------------------------------------------------------------------------
+
+groups:
+
+  # Discovery
+  - { id: g_analysis,           name: Analysis,              stage: discovery }
+
+  # Design
+  - { id: g_architecture,       name: Architecture,          stage: design }
+  - { id: g_infra_setup,        name: Infrastructure Setup,  stage: design }
+
+  # Build
+  - { id: g_orchestrator,       name: Orchestrator Config,   stage: build }
+  - { id: g_dispatcher,         name: Dispatcher,            stage: build }
+  - { id: g_performer_shell,    name: Performer — Shell,     stage: build }
+  - { id: g_performer_pipeline, name: Performer — Pipeline,  stage: build }
+  - { id: g_aggregator,         name: Aggregator,            stage: build }   # optional
+  - { id: g_unit_testing,       name: Unit Testing,          stage: build }
+
+  # Test
+  - { id: g_testing,            name: Testing,               stage: test }
+
+  # Deploy
+  - { id: g_deployment,         name: Deployment,            stage: deploy }
+  - { id: g_pm,                 name: Project Management,    stage: deploy }
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+
+tasks:
+
+  # --- Discovery -----------------------------------------------------------
+
+  - id: t_kickoff
+    name: Kickoff & Scoping
+    description: Process walkthrough with business owner; confirm scope boundary
+    group: g_analysis
+    role: { R: sa, A: pm, C: [process-owner] }
+    effort_pd: 1
+    predecessors: [m_start]
+
+  - id: t_as_is_analysis
+    name: As-Is Process Analysis
+    description: Document current manual steps, volumes, exception paths
+    group: g_analysis
+    role: { R: ba, A: process-owner, C: [sa] }
+    effort_pd: 2
+    predecessors: [t_kickoff]
+
+  - id: t_system_access_check
+    name: System Access Check
+    description: Confirm robot accounts, network routes, selector smoke-test
+    group: g_analysis
+    role: { R: developer, A: sa }
+    effort_pd: 1
+    predecessors: [t_kickoff]
+
+  # --- Design --------------------------------------------------------------
+
+  - id: t_pdd_review
+    name: PDD Review & Sign-off
+    description: Validate PDD; resolve open questions with SME
+    group: g_architecture
+    role: { R: ba, A: sa, C: [process-owner] }
+    effort_pd: 1
+    predecessors: [m_process_understood]
+
+  - id: t_solution_design
+    name: Solution Design (SDD + TDD)
+    description: Architecture decisions, pipeline module spec, exception design
+    group: g_architecture
+    role: { R: sa, A: sponsor, C: [developer] }
+    effort_pd: 3
+    predecessors: [t_pdd_review]
+
+  - id: t_env_setup
+    name: Environment & Repo Setup
+    description: Orchestrator assets, queue config, robot VM, source control
+    group: g_infra_setup
+    role: { R: developer, A: sa }
+    effort_pd: 1
+    predecessors: [m_process_understood]
+
+  # --- Build — Infrastructure ----------------------------------------------
+
+  - id: t_orchestrator_config
+    name: Orchestrator Config
+    description: Assets, queue, credentials, schedule setup
+    group: g_orchestrator
+    role: { R: developer, A: sa }
+    effort_pd: 0.5
+    predecessors: [m_design_approved]
+
+  # --- Build — Dispatcher --------------------------------------------------
+
+  - id: t_dispatcher_query
+    name: Source System Query
+    description: "[TBD — SOQL / API / DB query; load Orchestrator queue]"
+    group: g_dispatcher
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_orchestrator_config]
+
+  - id: t_dispatcher_dedup
+    name: Deduplication
+    description: Prevent re-queuing of already-queued items
+    group: g_dispatcher
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_dispatcher_query]
+
+  # --- Build — Performer Shell ---------------------------------------------
+
+  - id: t_init_applications
+    name: InitAllApplications
+    description: Launch and login to all target apps; retrieve credentials
+    group: g_performer_shell
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_orchestrator_config]
+
+  - id: t_get_transaction
+    name: GetTransactionData
+    description: Queue item retrieval and deserialisation
+    group: g_performer_shell
+    role: { R: developer, A: sa }
+    effort_pd: 0.5
+    predecessors: [t_init_applications]
+
+  - id: t_set_transaction_status
+    name: SetTransactionStatus + Exception Routing
+    description: "Success / BE / SE wiring; retry config"
+    group: g_performer_shell
+    role: { R: developer, A: sa }
+    effort_pd: 0.5
+    predecessors: [t_get_transaction]
+
+  - id: t_close_applications
+    name: CloseAllApplications
+    description: Graceful conditional logout
+    group: g_performer_shell
+    role: { R: developer, A: sa }
+    effort_pd: 0.5
+    predecessors: [t_set_transaction_status]
+
+  # --- Build — Performer Pipeline ------------------------------------------
+
+  - id: t_pipeline_init
+    name: "Pipeline: init"
+    description: Per-transaction initialisation and field validation
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_init_applications]
+
+  - id: t_pipeline_ingest
+    name: "Pipeline: ingest"
+    description: Read full source record — SOQL / API / UI
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_init]
+
+  - id: t_pipeline_enrich
+    name: "Pipeline: enrich"
+    description: Routing, mapping, data enrichment
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_ingest]
+
+  - id: t_pipeline_decide
+    name: "Pipeline: decide"
+    description: "Validity check, business rules, early-exit gate"
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_enrich]
+
+  - id: t_pipeline_execute
+    name: "Pipeline: execute"
+    description: Write to target system(s)
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_decide]
+
+  - id: t_pipeline_complete
+    name: "Pipeline: complete"
+    description: Queue item output properties; source system close
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_execute]
+
+  - id: t_pipeline_finalize
+    name: "Pipeline: finalize"
+    description: Per-transaction cleanup and structured logging
+    group: g_performer_pipeline
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_complete]
+
+  # --- Build — Aggregator (optional) ---------------------------------------
+
+  - id: t_aggregator
+    name: Aggregator
+    description: "[TBD — post-processing, reporting, downstream handoff]"
+    group: g_aggregator
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_orchestrator_config]
+
+  # --- Build — Unit Testing ------------------------------------------------
+
+  - id: t_unit_testing
+    name: Unit Testing
+    description: "Per-workflow unit tests; mock data sets"
+    group: g_unit_testing
+    role: { R: developer, A: sa }
+    effort_pd: ~
+    predecessors: [t_pipeline_finalize, t_dispatcher_dedup, t_close_applications]
+
+  # --- Test ----------------------------------------------------------------
+
+  - id: t_sit
+    name: SIT / Integration Testing
+    description: End-to-end tests against real systems in test environment
+    group: g_testing
+    role: { R: developer, A: sa }
+    effort_pd: 2
+    predecessors: [m_core_built]
+
+  - id: t_uat_prep
+    name: UAT Preparation
+    description: "Test data, test scripts, UAT guide for business owner"
+    group: g_testing
+    role: { R: ba, A: process-owner, C: [sa] }
+    effort_pd: 2
+    predecessors: [m_core_built]
+
+  - id: t_uat_support
+    name: UAT Support
+    description: Attend UAT sessions; triage and fix defects
+    group: g_testing
+    role: { R: developer, A: sa, C: [ba] }
+    effort_pd: 2
+    predecessors: [t_sit, t_uat_prep]
+
+  # --- Deploy --------------------------------------------------------------
+
+  - id: t_prod_deploy
+    name: Production Deployment
+    description: "Package publish, Orchestrator config, schedule, go-live checklist"
+    group: g_deployment
+    role: { R: developer, A: sa }
+    effort_pd: 1
+    predecessors: [m_uat_passed]
+
+  - id: t_hypercare
+    name: Hypercare
+    description: "2-week post go-live monitoring; hotfix buffer; handover to RUN"
+    group: g_deployment
+    role: { R: developer, A: sa, C: [ops] }
+    effort_pd: 3
+    predecessors: [t_prod_deploy]
+
+  - id: t_pm
+    name: Project Management
+    description: "Coordination, status reporting, stakeholder communication"
+    group: g_pm
+    role: { R: pm, A: sa }
+    effort_pd: 3
+    predecessors: [m_start]

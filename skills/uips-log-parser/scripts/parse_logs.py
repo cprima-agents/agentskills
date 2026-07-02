@@ -164,7 +164,7 @@ def group_by_job(entries: list[dict]) -> dict[str, list[dict]]:
     return dict(jobs)
 
 
-def summarise_job(job_id: str, entries: list[dict]) -> dict:
+def summarise_job(job_id: str, entries: list[dict], min_level: str | None = None) -> dict:
     """Build a summary dict for a single job run."""
     first = entries[0]
     last = entries[-1]
@@ -174,11 +174,14 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
     warnings: list[dict] = []
     user_messages: list[dict] = []
     testing_messages: list[dict] = []
+    all_messages: list[dict] = []
 
     _FRAMEWORK_BANNERS = re.compile(
         r"(execution (started|ended)|initializing settings)",
         re.IGNORECASE,
     )
+
+    min_level_order = LEVEL_ORDER.get(min_level, None) if min_level else None
 
     for entry in entries:
         level = entry.get("level", "Unknown")
@@ -194,6 +197,8 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
             msg = entry.get("message", "")
             if not _FRAMEWORK_BANNERS.search(msg):
                 testing_messages.append(entry)
+        if min_level_order is not None and LEVEL_ORDER.get(level, -1) >= min_level_order:
+            all_messages.append(entry)
 
     ended_normally = "execution ended" in last.get("message", "").lower()
     has_errors = bool(errors)
@@ -222,6 +227,7 @@ def summarise_job(job_id: str, entries: list[dict]) -> dict:
         "warnings": warnings,
         "user_messages": user_messages,
         "testing_messages": testing_messages,
+        "all_messages": all_messages,
         "_entries": entries,
     }
 
@@ -278,6 +284,15 @@ def print_report(summaries: list[dict], show_warnings: bool = False) -> None:
                 ts = w.get("timeStamp", "")[:19].replace("T", " ")
                 msg = w.get("message", "").replace("\r\n", " | ")
                 print(f"         [{ts}] {msg[:200]}")
+
+        if s.get("all_messages"):
+            print(f"       All entries ({len(s['all_messages'])}):")
+            for e in s["all_messages"]:
+                ts = e.get("timeStamp", "")[:19].replace("T", " ")
+                lvl = e.get("level", "?")
+                ltype = e.get("logType", "?")
+                msg = e.get("message", "").replace("\r\n", " | ").replace("\n", " | ")
+                print(f"         [{ts}] {lvl:11s} [{ltype}] {msg[:300]}")
 
         needle = s.get("_needle")
         if needle:
@@ -336,6 +351,16 @@ def main() -> None:
         help="Output format: text (default) or json. JSON sends data to stdout, diagnostics to stderr."
     )
     parser.add_argument(
+        "--min-level",
+        choices=list(LEVEL_ORDER.keys()),
+        metavar="LEVEL",
+        help=(
+            "Show all log entries at or above LEVEL in an 'All entries' section. "
+            f"Choices: {', '.join(LEVEL_ORDER.keys())}. "
+            "Use Trace or Verbose to see framework internals."
+        ),
+    )
+    parser.add_argument(
         "--list-files", action="store_true",
         help="List discovered log files and exit"
     )
@@ -388,7 +413,7 @@ def main() -> None:
         all_entries.extend(parse_log_file(f))
 
     jobs = group_by_job(all_entries)
-    summaries = [summarise_job(jid, entries) for jid, entries in jobs.items()]
+    summaries = [summarise_job(jid, entries, min_level=args.min_level) for jid, entries in jobs.items()]
     summaries.sort(key=lambda s: s["start"])
 
     if args.process:

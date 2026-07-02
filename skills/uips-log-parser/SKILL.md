@@ -37,6 +37,9 @@ uv run skills/uips-log-parser/scripts/parse_logs.py --all --errors-only
 # Search for a string across all runs
 uv run skills/uips-log-parser/scripts/parse_logs.py --all --needle "Object reference"
 
+# Show all log entries including Trace/Verbose (framework internals)
+uv run skills/uips-log-parser/scripts/parse_logs.py --min-level Trace
+
 # Duration between two copied log lines
 uv run skills/uips-log-parser/scripts/parse_logs.py --duration "LINE1" "LINE2"
 
@@ -79,6 +82,7 @@ Use `--log-dir PATH` to override, or `--file PATH` to point at a single file.
 | `--needle TEXT` | — | Filter runs containing TEXT; highlights matches |
 | `--errors-only` | off | Show only runs with errors |
 | `--warnings` | off | Also show warning details |
+| `--min-level LEVEL` | — | Show all entries ≥ LEVEL (Trace/Verbose/Information/…) in an "All entries" section |
 | `--format json\|text` | text | Output format |
 | `--list-files` | off | Show discovered files and exit |
 

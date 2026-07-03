@@ -86,6 +86,20 @@ Use `--log-dir PATH` to override, or `--file PATH` to point at a single file.
 | `--format json\|text` | text | Output format |
 | `--list-files` | off | Show discovered files and exit |
 
+## Windows encoding
+
+UiPath log messages may contain Unicode characters (e.g. `→`) that crash the script when the Windows console uses its default `cp1252` encoding. Set one of these before running:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+```
+
+or per-invocation:
+
+```powershell
+$env:PYTHONUTF8 = "1"; uv run skills/uips-log-parser/scripts/parse_logs.py --min-level Trace
+```
+
 ## Gotchas
 
 - Log files start with a UTF-8 BOM (`\xEF\xBB\xBF`) — the script strips it automatically.
